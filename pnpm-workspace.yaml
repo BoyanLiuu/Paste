@@ -1,3 +1,17 @@
+# Packages allowed to run install scripts. pnpm blocks them by default.
+#
+# The key has moved twice: `package.json`'s `pnpm.onlyBuiltDependencies`, then
+# `onlyBuiltDependencies` here, now `allowBuilds` here. Project 33's first deploy failed
+# during `pnpm install` — before compiling anything — because its allowlist sat in the
+# old location, unread. Verify against the pnpm version in use rather than from memory.
+#
+# Prisma cannot generate its query engine without this, and the failure only appears on
+# a COLD install: a warm node_modules leaves pnpm nothing to ask about, so it passes
+# locally and breaks in CI.
 allowBuilds:
   sharp: false
   unrs-resolver: false
+  prisma: true
+  "@prisma/client": true
+  "@prisma/engines": true
+  esbuild: true

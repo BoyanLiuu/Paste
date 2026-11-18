@@ -16,7 +16,8 @@ import { join } from "node:path";
 
 const RAW =
   "https://raw.githubusercontent.com/gitleaks/gitleaks/master/config/gitleaks.toml";
-const LICENSE = "https://raw.githubusercontent.com/gitleaks/gitleaks/master/LICENSE";
+const LICENSE =
+  "https://raw.githubusercontent.com/gitleaks/gitleaks/master/LICENSE";
 const DIR = join(import.meta.dirname, "../vendor/gitleaks");
 
 async function fetchText(url: string): Promise<string> {

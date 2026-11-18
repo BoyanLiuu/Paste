@@ -1,0 +1,274 @@
+// The schema from ARCHITECTURE Appendix D.
+//
+// Everything lives in the `paste` schema, not `public`. The Supabase project is shared
+// with other apps — `hacker_news_clone` is already there — and the schema is the
+// isolation boundary (Appendix B). Supabase does not expose a non-public schema through
+// PostgREST unless someone adds it in the dashboard, which makes "the browser never
+// talks to Supabase" structural rather than a convention.
+//
+// No connection URL here: Prisma 7 rejects `url` and `directUrl` in a datasource block.
+// Migrations read DIRECT_URL from prisma.config.ts; the runtime gets DATABASE_URL
+// through a driver adapter in src/lib/server/prisma.ts.
+//
+// What this file CANNOT express, and which therefore lives as hand-written SQL in the
+// migration: the immutability trigger, the four partial indexes, the `CHECK` that ties
+// body_text and storage_key together, and RLS. Those are not decoration — the trigger
+// is what turns §6.3's invariant into something the database enforces.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["paste"]
+}
+
+model User {
+  id          String  @id @default(uuid()) @db.Uuid
+  /// Nullable from the first migration, and unused until M10. Auth arriving later must
+  /// not need a migration of its own.
+  clerkUserId String? @unique @map("clerk_user_id")
+  /// The public handle in /list/:username. It appears in URLs that must not rot, so it
+  /// is ours and deliberately frozen rather than re-read from Clerk (§3).
+  username    String  @unique
+  email       String?
+  displayName String? @map("display_name")
+  isModerator Boolean @default(false) @map("is_moderator")
+
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  lastSeenAt DateTime? @map("last_seen_at") @db.Timestamptz(6)
+
+  pastes            Paste[]
+  revisions         Revision[]
+  acknowledged      SecretFinding[]
+  requestsMade      DeletionRequest[] @relation("requester")
+  requestsDecided   DeletionRequest[] @relation("decider")
+  auditEntries      AuditLog[]
+  rateBucket        RateBucket?
+
+  @@map("users")
+  @@schema("paste")
+}
+
+model Paste {
+  /// 8 characters of base58 from crypto.randomBytes. Not sequential: the id is the
+  /// access control for an unlisted paste, so it has to be unguessable (§1.3).
+  id    String  @id
+  owner User    @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId String @map("owner_id") @db.Uuid
+
+  /// Attacker-supplied, like the body. Escaped everywhere it is rendered (§6.5).
+  title          String?
+  language       String
+  languageSource String  @map("language_source")
+  /// A STORED property of the snippet, not a viewer preference, so `#L42` means one
+  /// thing for every reader (§6.2).
+  lineNumbers    Boolean @default(false) @map("line_numbers")
+
+  retentionCode String    @map("retention_code")
+  /// Required iff retentionCode is 'never'. The reason — not authentication — is what
+  /// keeps the unbounded option rare (§6.3).
+  neverReason   String?   @map("never_reason")
+  /// NULL only when retentionCode is 'never'.
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz(6)
+  /// expiresAt + 30 days. The grace window a moderator can un-expire inside.
+  purgeAfter    DateTime? @map("purge_after") @db.Timestamptz(6)
+
+  state String
+
+  /// Denormalised: saves a MAX(revision_no) subquery on every view. Not a foreign key,
+  /// because the revision it points at is created in the same transaction as the paste.
+  headRevisionId String? @map("head_revision_id") @db.Uuid
+
+  forkedFrom   String? @map("forked_from")
+  forkedFromPaste Paste?  @relation("forks", fields: [forkedFrom], references: [id], onDelete: SetNull)
+  forks        Paste[] @relation("forks")
+
+  createdVia    String  @map("created_via")
+  /// sha256(ip + daily salt), as project 01. Never the address itself.
+  createdIpHash String? @map("created_ip_hash")
+  /// A running total. paste_views holds the daily series the moderation queue reads.
+  viewCount     Int     @default(0) @map("view_count")
+  /// Sweeper phase B only: what survives the process dying mid-purge (§6.4).
+  leaseUntil    DateTime? @map("lease_until") @db.Timestamptz(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  revisions Revision[]
+  findings  SecretFinding[]
+  requests  DeletionRequest[]
+  views     PasteView[]
+
+  @@index([ownerId, createdAt(sort: Desc)])
+  @@map("pastes")
+  @@schema("paste")
+}
+
+model Revision {
+  id         String @id @default(uuid()) @db.Uuid
+  paste      Paste  @relation(fields: [pasteId], references: [id], onDelete: Cascade)
+  pasteId    String @map("paste_id")
+  revisionNo Int    @map("revision_no")
+
+  byteSize  Int    @map("byte_size")
+  lineCount Int    @map("line_count")
+  /// Survives the purge. It is what lets a tombstone prove what used to be there, so a
+  /// local copy can be checked against it (§6.3).
+  sha256    String
+
+  /// Populated iff byteSize <= 512 KB. Exactly one of these two is set, enforced by a
+  /// CHECK in the migration — unless the revision has been purged, when both are NULL.
+  bodyText   String? @map("body_text")
+  storageKey String? @map("storage_key")
+
+  reason String
+  /// 'complete' | 'partial'. Partial means the scan hit its 150 ms budget and a
+  /// background pass owes the rest (§6.1).
+  scanState String? @map("scan_state")
+
+  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdById String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  supersededAt DateTime? @map("superseded_at") @db.Timestamptz(6)
+  /// The only column whose change may legally null the body. The trigger allows that
+  /// one mutation and nothing else.
+  purgedAt     DateTime? @map("purged_at") @db.Timestamptz(6)
+
+  renders  Render[]
+  findings SecretFinding[]
+
+  @@unique([pasteId, revisionNo])
+  @@map("paste_revisions")
+  @@schema("paste")
+}
+
+model Render {
+  revision   Revision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  revisionId String   @map("revision_id") @db.Uuid
+  /// Part of the key, not an attribute: a theme or Shiki upgrade adds a row rather than
+  /// mutating one, so two generations of markup never silently coexist.
+  theme      String
+
+  html         String
+  shikiVersion String?  @map("shiki_version")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@id([revisionId, theme])
+  @@map("paste_renders")
+  @@schema("paste")
+}
+
+model SecretFinding {
+  id         String    @id @default(uuid()) @db.Uuid
+  paste      Paste     @relation(fields: [pasteId], references: [id], onDelete: Cascade)
+  pasteId    String    @map("paste_id")
+  revision   Revision? @relation(fields: [revisionId], references: [id], onDelete: SetNull)
+  revisionId String?   @map("revision_id") @db.Uuid
+
+  ruleId String @map("rule_id")
+  tier   Int    @db.SmallInt
+
+  lineNo   Int @map("line_no")
+  colStart Int @map("col_start")
+  colEnd   Int @map("col_end")
+
+  /// First four and last four characters only. NEVER the secret: a table of extracted
+  /// credentials is a better target than the pastes they came from (§6.1).
+  matchPreview String @map("match_preview")
+
+  /// 'redacted' | 'overridden' | 'post_hoc'. Deliberately no 'blocked': a tier-1 block
+  /// writes no paste row, so there is no pasteId to hang a finding on. The block is
+  /// recorded in audit_log instead (Appendix B).
+  outcome String
+
+  overrideJustification String? @map("override_justification")
+  acknowledgedBy        User?   @relation(fields: [acknowledgedById], references: [id], onDelete: SetNull)
+  acknowledgedById      String? @map("acknowledged_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([pasteId])
+  @@map("secret_findings")
+  @@schema("paste")
+}
+
+model DeletionRequest {
+  /// A small integer the queue and the audit trail both cite, so it is readable in a
+  /// ticket. Everything else uses a uuid.
+  id      Int    @id @default(autoincrement())
+  paste   Paste  @relation(fields: [pasteId], references: [id], onDelete: Cascade)
+  pasteId String @map("paste_id")
+
+  requester   User   @relation("requester", fields: [requesterId], references: [id])
+  requesterId String @map("requester_id") @db.Uuid
+
+  /// Checked at submit, in code: a stranger must not be able to queue someone else's
+  /// snippet. A hard rule, not a moderation guideline (§6.3).
+  relationship String
+  reasonCode   String @map("reason_code")
+  justification String
+
+  status String
+
+  decidedBy    User?     @relation("decider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedById  String?   @map("decided_by") @db.Uuid
+  decidedAt    DateTime? @map("decided_at") @db.Timestamptz(6)
+  decisionNote String?   @map("decision_note")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("deletion_requests")
+  @@schema("paste")
+}
+
+model AuditLog {
+  id      String  @id @default(uuid()) @db.Uuid
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId String? @map("actor_id") @db.Uuid
+
+  action      String
+  subjectType String @map("subject_type")
+  subjectId   String @map("subject_id")
+  payload     Json?
+
+  /// Lets a retried sweep re-insert its own row safely: a killed phase-B invocation is
+  /// re-claimed 120 s later and must be idempotent at every step (§6.4).
+  dedupeKey String? @map("dedupe_key")
+
+  at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([subjectType, subjectId, action, dedupeKey])
+  @@map("audit_log")
+  @@schema("paste")
+}
+
+model RateBucket {
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @id @map("user_id") @db.Uuid
+
+  /// A token bucket, refilled lazily, so there is no sweeper and no key expiry to
+  /// reason about. Charged on attempts, not successes — otherwise a 422 is free and the
+  /// scanner can be brute-forced (§4).
+  minuteTokens     Int      @default(20) @map("minute_tokens")
+  minuteRefilledAt DateTime @default(now()) @map("minute_refilled_at") @db.Timestamptz(6)
+  dayCount         Int      @default(0) @map("day_count")
+  dayStartedAt     DateTime @default(now()) @map("day_started_at") @db.Date
+
+  @@map("rate_buckets")
+  @@schema("paste")
+}
+
+model PasteView {
+  paste   Paste    @relation(fields: [pasteId], references: [id], onDelete: Cascade)
+  pasteId String   @map("paste_id")
+  day     DateTime @db.Date
+  n       Int      @default(0)
+
+  @@id([pasteId, day])
+  @@map("paste_views")
+  @@schema("paste")
+}
