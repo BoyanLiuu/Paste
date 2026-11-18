@@ -53,3 +53,6 @@ next-env.d.ts
 # Written by the same script. No secrets in it, but a committed artifact drifts from
 # its generator, and `pnpm fixtures:render` runs before build, test and dev anyway.
 /src/app/shiki-tokens.generated.css
+
+# Compiled from vendor/gitleaks/gitleaks.toml by scripts/compile-secret-rules.mts.
+/src/lib/secrets/rules.generated.ts

@@ -20,6 +20,10 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ExpiryReadout } from "@/components/expiry-readout";
 import { CreateReceipt, type Receipt } from "@/components/create-receipt";
+import { FindingsPanel } from "@/components/findings-panel";
+import { useDebouncedScan } from "@/components/use-debounced-scan";
+import { redact } from "@/lib/secrets/redact";
+import { scan as scanNow, worstTier } from "@/lib/secrets/scan";
 import {
   DEFAULT_RETENTION,
   RETENTION,
@@ -33,7 +37,7 @@ import {
   createPasteSchema,
   type CreatePasteValues,
 } from "@/lib/schema/create-paste";
-import type { RetentionCode } from "@/lib/types";
+import type { Finding, RetentionCode } from "@/lib/types";
 
 // Languages offered explicitly. Short on purpose: the ladder handles the rest, and a
 // 190-entry list invites picking wrong more than it invites picking right.
@@ -90,6 +94,11 @@ export function CreateForm({
   oversized = false,
 }: Props) {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  /** Findings from the last submit attempt, which is what the panel shows. The live
+   *  badge uses the debounced scan separately — the panel only ever reflects a scan of
+   *  the exact bytes the user tried to save. */
+  const [blocked, setBlocked] = useState<Finding[] | null>(null);
+  const [redacting, setRedacting] = useState(false);
 
   // Built once, not per render. The `defaultValues` object literal below is rebuilt on
   // every render even though react-hook-form only reads it on the first, so calling
@@ -128,8 +137,37 @@ export function CreateForm({
   // late, which nobody can see. Large logs are this product's main case, not an edge.
   const deferredBody = useDeferredValue(body);
   const { bytes, lines } = useMemo(() => measure(deferredBody), [deferredBody]);
+  const live = useDebouncedScan(deferredBody);
+
+  function onRedact() {
+    setRedacting(true);
+    try {
+      const current = form.getValues("body") ?? "";
+      // Re-scanned against the exact current text, not the stored findings: offsets
+      // are only valid for the bytes they were computed from, and the textarea may
+      // have moved on. This is also why the button lives on the refusal rather than
+      // next to the live badge (Appendix B).
+      const fresh = scanNow(current);
+      const result = redact(current, fresh.findings);
+      form.setValue("body", result.body, { shouldDirty: true });
+      setBlocked(
+        result.rescan.findings.length === 0 ? null : result.rescan.findings,
+      );
+    } finally {
+      setRedacting(false);
+    }
+  }
 
   async function onSubmit(values: CreatePasteValues) {
+    // The client scan is a courtesy; the server scans again before the insert and that
+    // is the one that decides (§6.1). Checking here means the user sees the finding
+    // against their own text without a round trip.
+    const result = scanNow(values.body);
+    if (result.findings.length > 0) {
+      setBlocked(result.findings);
+      return;
+    }
+    setBlocked(null);
     // Posts to the real endpoint. In the static phase it validates and refuses, and
     // that refusal is what the receipt reports — so only the route's body changes at
     // M7, not this caller (Appendix C, rule 4).
@@ -228,8 +266,21 @@ export function CreateForm({
           <FieldError message={errors.title?.message} />
         </div>
 
+        {blocked !== null ? (
+          <FindingsPanel
+            findings={blocked}
+            worstTier={worstTier(blocked) ?? 2}
+            onRedact={onRedact}
+            onDismiss={() => setBlocked(null)}
+            redacting={redacting}
+          />
+        ) : null}
+
         <div className="flex flex-col gap-2">
-          <Label htmlFor="body">Text</Label>
+          <div className="flex items-baseline justify-between gap-3">
+            <Label htmlFor="body">Text</Label>
+            <ScanBadge live={live} />
+          </div>
           <Textarea
             id="body"
             rows={16}
@@ -362,6 +413,36 @@ const SAMPLES = [
   { id: "password", label: "a password" },
   { id: "huge", label: "11 MB of log" },
 ] as const;
+
+const BADGE_COPY: Record<string, string> = {
+  idle: "",
+  scanning: "Checking…",
+  clean: "No secrets found",
+  findings: "Possible secret",
+  failed: "Check unavailable",
+};
+
+/** Crossfades between states and never reflows: it sits beside a textarea someone is
+ *  typing into, and layout movement under a caret is worse than no feedback. */
+function ScanBadge({ live }: { live: ReturnType<typeof useDebouncedScan> }) {
+  if (live.status === "idle") return null;
+  const tone =
+    live.status === "findings"
+      ? "text-bad"
+      : live.status === "clean"
+        ? "text-ok"
+        : "text-muted-foreground";
+  return (
+    <span
+      className={`font-mono text-xs transition-opacity ${tone}`}
+      aria-live="polite"
+    >
+      {BADGE_COPY[live.status]}
+      {live.status === "findings" ? ` (${live.findings.length})` : ""}
+      {live.partial ? " · first 1 MB" : ""}
+    </span>
+  );
+}
 
 function FieldError({ message }: { message?: string }) {
   if (message === undefined) return null;
