@@ -24,7 +24,10 @@ export default defineConfig({
   webServer: {
     command: "pnpm build && pnpm start",
     url: `http://127.0.0.1:${PORT}`,
-    reuseExistingServer: !process.env.CI,
+    // Never reuse: the command rebuilds, and a leftover server would serve a stale
+    // build. That bug cost two detours during M0 and this suite guards N5, where a
+    // silent pass is the worst outcome.
+    reuseExistingServer: false,
     timeout: 180_000,
   },
 });

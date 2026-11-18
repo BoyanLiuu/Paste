@@ -67,15 +67,21 @@
    * onto Tailwind's numeric steps, so use those instead:
    *   2px→0.5  4px→1  8px→2  12px→3  16px→4  24px→6  40px→10  64px→16  96px→24  144px→36 */
 
+  /* Only ease-out. Appendix E allows 90-200ms ease-out and no springs, so the
+   * prototype's --ease-in and --ease-in-out are omitted: a token that is wrong to
+   * use is worse than an absent one, because nothing catches the violation. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 
   --tracking-display: -0.03em;
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
+  /* shadcn's own components reach for the upper steps — badge.tsx uses rounded-4xl.
+   * Dropping them silently falls back to Tailwind's defaults. */
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
@@ -86,7 +92,6 @@
    * attribute keeps the CSP at `style-src 'self'` with no inline-style allowance. */
   --font-display:
     var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-display);
   --font-outlier: var(--font-atkinson-mono), ui-monospace, monospace;
 
   --paper: oklch(17% 0.008 250);
@@ -141,10 +146,11 @@
   --space-3xl: 96px;
   --space-4xl: 144px;
 
-  /* durations: no Tailwind theme namespace, so these stay plain custom properties */
+  /* Durations: no Tailwind theme namespace, so these stay plain custom properties.
+   * Both sit inside Appendix E's 90-200ms band; the prototype's 420ms --dur-long is
+   * omitted because it is outside the band the doctrine permits. */
   --dur-micro: 120ms;
-  --dur-short: 220ms;
-  --dur-long: 420ms;
+  --dur-short: 180ms;
 
   --container: 1440px;
   --gutter: 64px;
@@ -245,10 +251,6 @@
   p {
     margin: 0;
     text-wrap: pretty;
-  }
-
-  p:not([class]) {
-    max-width: 65ch;
   }
 
   button,
