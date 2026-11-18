@@ -12,6 +12,28 @@ import type { Paste } from "@/lib/types";
 // what is about to disappear, so a paste within two days of lapsing says "In 21 hours"
 // and anything further out shows its date — see lib/relative-time.ts.
 
+/** "Expired 6 Nov", "Purged 9 Oct", "Removed 8 Nov".
+ *
+ *  The date is the useful half: someone scanning a list of gone pastes is asking when
+ *  each stopped answering. A bare "Purged" drops exactly that. */
+function goneLabel(
+  paste: Paste,
+  reason: "expired" | "purged" | "removed",
+): string {
+  switch (reason) {
+    case "removed":
+      return `Removed ${formatDate(paste.removedBy!.at)}`;
+    case "purged":
+      return paste.purgeAfter === null
+        ? "Purged"
+        : `Purged ${formatDate(paste.purgeAfter)}`;
+    case "expired":
+      return paste.expiresAt === null
+        ? "Expired"
+        : `Expired ${formatDate(paste.expiresAt)}`;
+  }
+}
+
 export function PasteRow({ paste }: { paste: Paste }) {
   const liveness = livenessOf(paste);
   const gone = liveness.kind === "gone";
@@ -43,11 +65,7 @@ export function PasteRow({ paste }: { paste: Paste }) {
         <div className="flex flex-wrap items-center gap-2">
           {gone ? (
             <Badge variant="secondary">
-              {liveness.reason === "removed"
-                ? "Removed"
-                : liveness.reason === "purged"
-                  ? "Purged"
-                  : expiry.text}
+              {goneLabel(paste, liveness.reason)}
             </Badge>
           ) : (
             <span

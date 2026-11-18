@@ -114,7 +114,12 @@ async function Listing({
         {/* A GET form, so a search is a URL. No JavaScript, and the result is
             shareable and reloadable — which matters more here than instant feedback. */}
         <form method="GET" className="flex gap-2">
-          <input type="hidden" name="filter" value={filter} />
+          {/* Omitted on "all" so the form produces the same URL href() would write.
+              A hidden filter=all made a submitted search ?filter=all&q=… while a
+              clicked one was ?q=… — two URLs for one state. */}
+          {filter === "all" ? null : (
+            <input type="hidden" name="filter" value={filter} />
+          )}
           <Input
             name="q"
             defaultValue={q ?? ""}
@@ -198,7 +203,7 @@ function Empty({
         <p className="text-ink-2">
           {own
             ? "Paste something and the link will keep answering for as long as you choose."
-            : `${"This person"} has not saved anything that is still around.`}
+            : "Nobody has saved anything under that name."}
         </p>
         {own ? (
           <Button asChild>
@@ -215,8 +220,10 @@ function Empty({
       <p className="text-ink-2">
         {query === "" ? (
           <>
-            No pastes are <Badge variant="secondary">{filter}</Badge> on this
-            page.
+            {/* Not "on this page": filtering runs before pagination, so this
+                describes the whole collection. */}
+            None of these pastes are <Badge variant="secondary">{filter}</Badge>
+            .
           </>
         ) : (
           <>
