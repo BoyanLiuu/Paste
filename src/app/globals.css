@@ -1,26 +1,272 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* The approved prototype (docs/project-idea/25-paste-snippet-sharing/hallmark) is dark only,
+ * so :root carries the dark palette and there is no light theme to maintain. No .dark class.
+ *
+ * Token names are the prototype's, minus its `--color-` prefix: the prototype's `--color-ink`
+ * is `--ink` here, `--color-accent` is `--brand`. The rename avoids colliding with shadcn's
+ * reserved `--color-accent` / `--color-border` names, which mean something different (a hover
+ * surface, not the brand). Ported prototype CSS needs that substitution. */
 
 @theme inline {
+  /* shadcn semantics, resolved onto the prototype palette below */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* the prototype palette, as Tailwind utilities: bg-paper, text-ink, border-rule, bg-brand */
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-paper-3: var(--paper-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-rule: var(--rule);
+  --color-rule-2: var(--rule-2);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-soft: var(--brand-soft);
+  --color-cool: var(--cool);
+  --color-cool-soft: var(--cool-soft);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-bad: var(--bad);
+  --color-bad-soft: var(--bad-soft);
+
+  --font-sans: var(--font-display);
+  --font-mono: var(--font-outlier);
+  --font-heading: var(--font-display);
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.44rem;
+  --text-2xl: 1.728rem;
+  --text-3xl: 2.074rem;
+
+  /* No named --spacing-* tokens on purpose. Tailwind v4's named spacing namespace also
+   * feeds every sizing utility, so a `--spacing-lg: 24px` silently turns `max-w-lg` into
+   * 24px and collapses the element. The prototype's scale is a 4px grid that maps exactly
+   * onto Tailwind's numeric steps, so use those instead:
+   *   2px→0.5  4px→1  8px→2  12px→3  16px→4  24px→6  40px→10  64px→16  96px→24  144px→36 */
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --tracking-display: -0.03em;
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
 }
 
-@media (prefers-color-scheme: dark) {
+:root {
+  color-scheme: dark;
+
+  /* next/font sets --font-host-grotesk and --font-atkinson-mono via a class on <html>,
+   * which is :root, so these resolve. Declaring the stacks here rather than in a style
+   * attribute keeps the CSP at `style-src 'self'` with no inline-style allowance. */
+  --font-display:
+    var(--font-host-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-display);
+  --font-outlier: var(--font-atkinson-mono), ui-monospace, monospace;
+
+  --paper: oklch(17% 0.008 250);
+  --paper-2: oklch(21% 0.009 250);
+  --paper-3: oklch(13.5% 0.007 250);
+  --ink: oklch(95% 0.005 250);
+  --ink-2: oklch(83% 0.008 250);
+  --rule: oklch(31% 0.01 250);
+  --rule-2: oklch(42% 0.012 250);
+  --brand: oklch(82% 0.15 80);
+  --brand-ink: oklch(18% 0.04 75);
+  --brand-soft: oklch(29% 0.05 80);
+  --cool: oklch(77% 0.12 245);
+  --cool-soft: oklch(29% 0.05 245);
+  --ok: oklch(76% 0.15 150);
+  --ok-soft: oklch(24.5% 0.03 150);
+  --bad: oklch(70% 0.17 25);
+  --bad-soft: oklch(24.5% 0.035 25);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper-2);
+  --card-foreground: var(--ink);
+  --popover: var(--paper-2);
+  --popover-foreground: var(--ink);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-ink);
+  --secondary: var(--paper-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--paper-2);
+  --muted-foreground: oklch(71% 0.01 250);
+  --accent: var(--brand-soft);
+  --accent-foreground: var(--ink);
+  --destructive: var(--bad);
+  --border: var(--rule);
+  --input: var(--rule);
+  --ring: var(--brand);
+
+  --radius: 0.625rem; /* 10px — the prototype's --radius-card */
+  --radius-pill: 6px;
+
+  /* The prototype's spacing names, for hand-written CSS only. Deliberately outside
+   * @theme so no utilities are generated and nothing collides with sizing. */
+  --space-3xs: 2px;
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 40px;
+  --space-2xl: 64px;
+  --space-3xl: 96px;
+  --space-4xl: 144px;
+
+  /* durations: no Tailwind theme namespace, so these stay plain custom properties */
+  --dur-micro: 120ms;
+  --dur-short: 220ms;
+  --dur-long: 420ms;
+
+  --container: 1440px;
+  --gutter: 64px;
+
+  --z-base: 1;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-sticky-nav: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+}
+
+@media (max-width: 60rem) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --gutter: 24px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (max-width: 40rem) {
+  :root {
+    --gutter: 16px;
+  }
+}
+
+/* Ported from the prototype's base.css. Rules that depended on its photographic
+ * [data-slot] treatment are omitted: this product renders text, not images. */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    scrollbar-color: var(--muted-foreground) var(--paper);
+    scroll-padding-top: var(--space-3xl);
+  }
+
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-size: var(--text-md);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    caret-color: var(--brand);
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--brand) 25%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  a {
+    color: inherit;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.16em;
+  }
+
+  h1,
+  h2,
+  h3 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-synthesis: none;
+    letter-spacing: var(--tracking-display);
+    line-height: 1.05;
+    overflow-wrap: break-word;
+    min-width: 0;
+    text-wrap: balance;
+  }
+
+  h1 {
+    max-width: 20ch;
+    font-size: var(--text-2xl);
+  }
+
+  h2 {
+    max-width: 30ch;
+    font-size: var(--text-lg);
+  }
+
+  h3 {
+    max-width: 40ch;
+    font-size: var(--text-md);
+    line-height: 1.2;
+  }
+
+  p {
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  p:not([class]) {
+    max-width: 65ch;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
+
+@utility container-page {
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* Tabular figures for sizes, line counts and dates — all of which are compared down a column. */
+@utility num {
+  font-variant-numeric: tabular-nums;
 }
