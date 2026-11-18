@@ -4,19 +4,18 @@
 // structural property rather than a convention, and this module is where that would be
 // lost first, so it fails loudly instead of leaking a connection string into a bundle.
 
+// The guard, and the same one every other module under src/lib/server uses.
+//
+// This replaced a `typeof window !== "undefined"` throw, which was worse in both
+// directions: it only fires once the module has already been bundled and shipped, and it
+// fires spuriously under jsdom, where `window` exists and there is no browser. The
+// package's exports map sends the `react-server` condition to an empty module, so the
+// build fails on a client import while the server and the unit suite both resolve it.
+import "server-only";
+
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "@/generated/prisma/client";
-
-// A client reaching the browser bundle is the failure this guards. The import would
-// otherwise succeed and the error would surface much later as a confusing runtime fault
-// with DATABASE_URL already serialised into the payload.
-if (typeof window !== "undefined") {
-  throw new Error(
-    "src/lib/server/prisma.ts was imported in the browser. Database access belongs in a " +
-      "server component, a route handler or a server action.",
-  );
-}
 
 function connectionString(): string {
   const url = process.env.DATABASE_URL;

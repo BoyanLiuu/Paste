@@ -22,7 +22,7 @@
     "db:generate": "prisma generate",
     "db:deploy": "prisma migrate deploy",
     "db:status": "prisma migrate status",
-    "db:seed": "tsx prisma/seed.mts"
+    "db:seed": "NODE_OPTIONS=--conditions=react-server tsx prisma/seed.mts"
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.7",

@@ -10,6 +10,9 @@
 
 import "server-only";
 
+import { DEFAULT_RETENTION } from "@/lib/expiry/retention";
+import { createPasteInDatabase } from "@/lib/server/create-paste";
+import { userIdFor } from "@/lib/server/users";
 import { assertCan } from "@/lib/server/viewer";
 import type {
   Paste,
@@ -45,6 +48,14 @@ export interface CreatePasteInput {
   neverReason?: string;
   title?: string;
   filename?: string;
+  /** Which caller: the form, the CLI or a direct API client. Recorded on the paste and
+   *  in the audit row, and it decides the size ceiling (§4 stage 3). */
+  createdVia?: "web" | "cli" | "api";
+  /** sha256(ip + daily salt), never the address itself (§6.1). */
+  createdIpHash?: string;
+  /** A justification for tier-2/3 findings the creator chose to save past. Tier 1 is not
+   *  overridable and there is deliberately no way to express that here. */
+  override?: { justification: string };
 }
 
 export interface RequestRemovalInput {
@@ -58,13 +69,39 @@ export interface DecideRequestInput {
   note: string;
 }
 
-/** M7. Scan runs before the insert, so a blocked body never gets an identifier (§6.1). */
+/**
+ * Store a paste. The scan runs before the insert, so a blocked body never gets an
+ * identifier (§6.1).
+ *
+ * Implemented at M7. The signature is the one M1 declared and M2's form has been calling
+ * since — which is the whole return on Appendix C: this milestone changed a body, not a
+ * call site.
+ *
+ * Throws `BlockedBySecretScan` on a tier-1 hit and `NeedsOverride` on an unjustified
+ * tier-2/3 one. Both are refusals the route maps to a 422; neither writes a paste row.
+ */
 export async function createPaste(
   viewer: Viewer,
-  _input: CreatePasteInput,
+  input: CreatePasteInput,
 ): Promise<Paste> {
   assertCan(viewer, "paste:create");
-  throw new NotImplementedInStaticPhase("createPaste", "M7");
+
+  // Outside the create, so a failed attempt does not repeat it. See users.ts.
+  const ownerId = await userIdFor(viewer);
+
+  return createPasteInDatabase({
+    ownerId,
+    body: input.body,
+    title: input.title,
+    language: input.language,
+    filename: input.filename,
+    lineNumbers: input.lineNumbers ?? false,
+    retention: input.retention ?? DEFAULT_RETENTION,
+    neverReason: input.neverReason,
+    createdVia: input.createdVia ?? "web",
+    createdIpHash: input.createdIpHash,
+    override: input.override,
+  });
 }
 
 /** M11. A fork re-runs the scanner, because a fork is a create (§6.3). */

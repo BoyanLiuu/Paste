@@ -105,9 +105,13 @@ describe("mutations", () => {
     expect(firstParamName(fn)).toBe("viewer");
   });
 
+  /** Implemented, and therefore no longer expected to refuse. M7 landed `createPaste`;
+   *  the others land in M11, and each moves out of this list as it does. */
+  const IMPLEMENTED = new Set(["createPaste"]);
+
   // The message is shown by the "nothing was sent" screens and names the milestone that
   // implements it, so it is contract rather than debug text.
-  it.each(fns)(
+  it.each(fns.filter(([name]) => !IMPLEMENTED.has(name)))(
     "%s rejects with NotImplementedInStaticPhase",
     async (name, fn) => {
       await expect(
@@ -119,4 +123,14 @@ describe("mutations", () => {
       expect(name).toBeTruthy();
     },
   );
+
+  it("still declares the refusal the unimplemented mutations share", () => {
+    // The class stays until the last mutation lands. Deleting it the moment one mutation
+    // is implemented would silently drop the contract the "nothing was sent" screens
+    // (ux-05, 36, 44, 46) are built against, and those screens have no other signal.
+    expect(IMPLEMENTED.size).toBeLessThan(fns.length);
+    expect(new NotImplementedInStaticPhase("x", "M11").message).toMatch(
+      /not implemented in the static phase/,
+    );
+  });
 });

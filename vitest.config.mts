@@ -18,4 +18,16 @@ export default defineConfig({
     // the same files. Stubbing the package instead would hide a real misuse.
     conditions: ["react-server"],
   },
+  ssr: {
+    resolve: {
+      // The same condition again, for files that opt into `@vitest-environment node`.
+      //
+      // `resolve.conditions` above only covers the web/jsdom graph, so a node-environment
+      // spec resolved `server-only` to its default export and threw on import. Which
+      // forced every Prisma test into jsdom — where Shiki's oniguruma WASM cannot load,
+      // so stage 8's render failed silently and the create path's render was never
+      // actually exercised by anything. Two unrelated-looking problems, one cause.
+      conditions: ["react-server"],
+    },
+  },
 });

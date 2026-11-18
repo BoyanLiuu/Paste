@@ -1,30 +1,26 @@
 // Pre-renders every fixture body that is under the highlight threshold, writing
-// src/lib/fixtures/renders.generated.ts.
+// src/lib/fixtures/renders.generated.ts, and writes the token stylesheet.
 //
-// Why author-time rather than on demand: ARCHITECTURE N11 makes "the view route
-// imports no highlighter" a tested property, and this models the `paste_renders` table
-// exactly — phase 2 swaps the generated lookup for a query and no component moves.
+// Why author-time rather than on demand: ARCHITECTURE N2 makes "the view route imports
+// no highlighter" a tested property, and this models the `paste_renders` table exactly —
+// M8 swaps the generated lookup for a query and no component moves.
 //
 // Run with `pnpm fixtures:render` after changing any body in src/lib/fixtures/bodies.ts.
 //
-// The CSS-variables theme is not a style preference. Shiki's default output puts
-// `style="color:#..."` on every token span, which would force `style-src
-// 'unsafe-inline'` in the CSP of the one page that renders hostile text (§6.5).
+// The highlighting itself lives in src/lib/render/highlight.ts, shared with the
+// save-time render in §4 stage 8. It used to live here, with its own insertion-ordered
+// token class map — which would have had two processes allocating the same class names
+// to different colours as soon as M7 added a second renderer.
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import {
-  addClassToHast,
-  createCssVariablesTheme,
-  createHighlighter,
-} from "shiki";
-
 import { DESIGNED_PASTES } from "@/lib/fixtures/index";
+import { grammarFor, highlight, THEME_NAME } from "@/lib/render/highlight";
 import { renderKey, revisionKey } from "@/lib/render/keys";
 import { renderMode } from "@/lib/render/thresholds";
+import { allTokenClasses, tokenStylesheet } from "@/lib/render/tokens";
 
-const THEME_NAME = "paste";
 const OUT = join(
   import.meta.dirname,
   "../src/lib/fixtures/renders.generated.ts",
@@ -34,86 +30,27 @@ const CSS_OUT = join(
   "../src/app/shiki-tokens.generated.css",
 );
 
-// Shiki's CSS-variables theme still writes `style="color:var(--shiki-token-comment)"`
-// on every token — an inline style **attribute**, which requires
-// `style-src 'unsafe-inline'` whether its value is a literal colour or a var(). That
-// would loosen the policy on the one page that renders hostile content, so the theme
-// choice alone does not buy what ARCHITECTURE §6.5 claims it does.
-//
-// This transformer moves each declaration to a generated class and emits the matching
-// stylesheet, so the stored HTML carries zero style attributes and the view page keeps
-// `style-src 'self'`. A test asserts the output stays style-free.
-const classForStyle = new Map<string, string>();
-
-function styleToClass(declaration: string): string {
-  let existing = classForStyle.get(declaration);
-  if (existing === undefined) {
-    existing = `tk${classForStyle.size}`;
-    classForStyle.set(declaration, existing);
-  }
-  return existing;
-}
-
-function moveStyleToClass(node: { properties?: Record<string, unknown> }) {
-  const style = node.properties?.style;
-  if (typeof style !== "string") return;
-  delete node.properties!.style;
-  addClassToHast(node as never, styleToClass(style));
-}
-
-const styleToClassTransformer = {
-  name: "style-to-class",
-  span: moveStyleToClass,
-  pre: moveStyleToClass,
-};
-
-/** A body ending in "\n" makes Shiki emit a final empty line, so the render carried 41
- *  line elements for a 40-line paste — and `#L41` would exist in the DOM while
- *  parseRange refused it as past the end. Strip it so markup and count agree. */
-function stripTrailingNewline(body: string): string {
-  return body.replace(/\n$/, "");
-}
-
-// Shiki needs a grammar id it knows. "log" is our own bespoke classification, not a
-// TextMate grammar, so it renders as plaintext until the log grammar lands in M5.
-const GRAMMAR: Record<string, string> = {
-  log: "text",
-  plaintext: "text",
-};
-
 async function main() {
   const wanted = DESIGNED_PASTES.filter(
     (p) =>
       p.body !== null && renderMode(p.byteSize, p.lineCount) === "highlight",
   );
 
-  const langs = [
-    ...new Set(wanted.map((p) => GRAMMAR[p.language] ?? p.language)),
-  ];
-
-  const highlighter = await createHighlighter({
-    themes: [
-      createCssVariablesTheme({ name: THEME_NAME, variablePrefix: "--shiki-" }),
-    ],
-    langs,
-  });
-
   const entries: string[] = [];
   for (const paste of wanted) {
-    const lang = GRAMMAR[paste.language] ?? paste.language;
-    const html = highlighter.codeToHtml(stripTrailingNewline(paste.body!), {
-      lang,
-      theme: THEME_NAME,
-      transformers: [styleToClassTransformer],
-      // Per-line ids are emitted only when the paste asks for them: always emitting
-      // doubles the node count of a large log for the majority that never link a line.
-      structure: "classic",
-    });
+    const html = await highlight(paste.body!, paste.language);
+    if (html === null) {
+      // A fixture is authored, not attacker-supplied, so an unknown grammar here is a
+      // mistake in the fixture rather than a case to degrade past.
+      throw new Error(
+        `No grammar for fixture ${paste.id} (language "${paste.language}").`,
+      );
+    }
     entries.push(
       `  ${JSON.stringify(renderKey(revisionKey(paste.id, 1), THEME_NAME))}: ${JSON.stringify(html)},`,
     );
     process.stdout.write(
-      `  ${paste.id.padEnd(10)} ${lang.padEnd(11)} ${String(paste.lineCount).padStart(5)} lines  ${String(html.length).padStart(7)} bytes of html\n`,
+      `  ${paste.id.padEnd(10)} ${grammarFor(paste.language).padEnd(11)} ${String(paste.lineCount).padStart(5)} lines  ${String(html.length).padStart(7)} bytes of html\n`,
     );
   }
 
@@ -127,7 +64,7 @@ async function main() {
     );
   }
 
-  const file = `// GENERATED by scripts/render-fixtures.ts — do not edit.
+  const file = `// GENERATED by scripts/render-fixtures.mts — do not edit.
 // Run \`pnpm fixtures:render\` to regenerate.
 //
 // Keyed "<pasteId>:<revisionNo>:<theme>", which is how \`paste_renders\` is keyed in
@@ -142,25 +79,17 @@ ${entries.join("\n")}
 `;
   writeFileSync(OUT, file, "utf8");
 
-  const css = [
-    "/* GENERATED by scripts/render-fixtures.mts — do not edit. */",
-    "/* Token classes replacing Shiki's inline style attributes, so the view page's",
-    "   CSP can stay at `style-src 'self'` (ARCHITECTURE §6.5). The --shiki-* values",
-    "   themselves are defined in globals.css, from the prototype's palette. */",
-    ...[...classForStyle.entries()].map(
-      ([declaration, className]) => `.${className} { ${declaration} }`,
-    ),
-    "",
-  ].join("\n");
-  writeFileSync(CSS_OUT, css, "utf8");
+  writeFileSync(CSS_OUT, tokenStylesheet(), "utf8");
   process.stdout.write(
-    `wrote ${classForStyle.size} token classes -> ${CSS_OUT}\n`,
+    `wrote ${allTokenClasses().length} token classes -> ${CSS_OUT}\n`,
   );
   process.stdout.write(
     `\nwrote ${entries.length} renders (${skipped.length} bodies above the threshold) -> ${OUT}\n`,
   );
-  // The highlighter holds a WASM instance; without this the process hangs.
-  highlighter.dispose();
+  // The highlighter holds a WASM instance that keeps the event loop alive. The shared
+  // module caches it deliberately for the server, so there is nothing to dispose here —
+  // exit explicitly instead.
+  process.exit(0);
 }
 
 await main();
