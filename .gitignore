@@ -50,3 +50,6 @@ next-env.d.ts
 # bodies into string literals, including deliberately credential-shaped ones, which
 # GitHub push protection rejects (correctly). Regenerate with `pnpm fixtures:render`.
 /src/lib/fixtures/renders.generated.ts
+# Written by the same script. No secrets in it, but a committed artifact drifts from
+# its generator, and `pnpm fixtures:render` runs before build, test and dev anyway.
+/src/app/shiki-tokens.generated.css

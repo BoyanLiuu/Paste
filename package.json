@@ -14,7 +14,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "fixtures:render": "tsx scripts/render-fixtures.mts",
-    "test:tz": "TZ=Pacific/Kiritimati pnpm fixtures:render && TZ=Pacific/Kiritimati vitest run"
+    "test:tz": "TZ=Pacific/Kiritimati pnpm fixtures:render && TZ=Pacific/Kiritimati vitest run",
+    "dev:raw": "next dev -p 3026",
+    "start:raw": "next start -p 3026"
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.7",

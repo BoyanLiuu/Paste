@@ -37,9 +37,21 @@ import {
   YAML_REV2,
 } from "./bodies";
 
-/** The sample's "now". Fixture dates are relative to this, so the screens show a
- *  coherent moment rather than drifting as the real clock moves. */
-export const NOW = Date.parse("2026-11-12T14:20:00Z");
+/** The sample's "now" — the real clock, not a frozen date.
+ *
+ *  Fixture dates are offsets from this rather than absolute strings. They were
+ *  originally absolute, authored around 12 Nov 2026, and that rotted: §6.3 requires
+ *  expiry be recomputed against the real clock, so six days later every 1-hour and
+ *  1-day paste had genuinely expired and the designed "live log" screen was
+ *  unreachable. The relative form keeps each screen reachable for good while leaving
+ *  the expiry logic real. `liveness.spec.ts` asserts every designed state still
+ *  resolves to the state it was designed for. */
+export const NOW = Date.now();
+
+/** Minutes before NOW, as an ISO string. Negative values are in the future. */
+function minutesAgo(minutes: number): string {
+  return new Date(NOW - minutes * 60_000).toISOString();
+}
 
 export const USERS: Record<string, User> = {
   deepika: { username: "deepika", displayName: "Deepika", isModerator: false },
@@ -156,7 +168,7 @@ export const PASTES: readonly Paste[] = [
     language: "log",
     languageSource: "firstline",
     retention: "1d",
-    createdAt: "2026-11-12T11:05:00Z",
+    createdAt: minutesAgo(195),
     state: "live",
     createdVia: "cli",
     views: 6,
@@ -172,7 +184,7 @@ export const PASTES: readonly Paste[] = [
     language: "log",
     languageSource: "firstline",
     retention: "1d",
-    createdAt: "2026-11-12T08:02:00Z",
+    createdAt: minutesAgo(378),
     state: "live",
     views: 14,
     body: PAY_LOG,
@@ -184,7 +196,7 @@ export const PASTES: readonly Paste[] = [
     language: "plaintext",
     languageSource: "fallback",
     retention: "1d",
-    createdAt: "2026-11-11T15:00:00Z",
+    createdAt: minutesAgo(1400),
     state: "live",
     views: 9,
     body: NOTES,
@@ -196,7 +208,7 @@ export const PASTES: readonly Paste[] = [
     language: "log",
     languageSource: "firstline",
     retention: "30d",
-    createdAt: "2026-11-10T16:40:00Z",
+    createdAt: minutesAgo(2740),
     state: "live",
     views: 4,
     body: INGEST_LOG,
@@ -210,7 +222,7 @@ export const PASTES: readonly Paste[] = [
     language: "python",
     languageSource: "firstline",
     retention: "30d",
-    createdAt: "2026-11-09T10:14:00Z",
+    createdAt: minutesAgo(4566),
     state: "live",
     views: 23,
     body: PY,
@@ -223,7 +235,7 @@ export const PASTES: readonly Paste[] = [
     language: "yaml",
     languageSource: "firstline",
     retention: "30d",
-    createdAt: "2026-11-04T10:14:00Z",
+    createdAt: minutesAgo(11766),
     state: "redacted",
     views: 96,
     body: YAML_REV2,
@@ -236,8 +248,8 @@ export const PASTES: readonly Paste[] = [
         byteSize: byteLength(YAML_REV1),
         lineCount: lineCountOf(YAML_REV1),
         createdBy: "deepika",
-        createdAt: "2026-11-04T10:14:00Z",
-        purgedAt: "2026-11-06T10:02:00Z",
+        createdAt: minutesAgo(11766),
+        purgedAt: minutesAgo(8898),
       },
       {
         no: 2,
@@ -246,7 +258,7 @@ export const PASTES: readonly Paste[] = [
         byteSize: byteLength(YAML_REV2),
         lineCount: lineCountOf(YAML_REV2),
         createdBy: "ines",
-        createdAt: "2026-11-06T10:02:00Z",
+        createdAt: minutesAgo(8898),
         purgedAt: null,
       },
     ],
@@ -265,7 +277,7 @@ export const PASTES: readonly Paste[] = [
     languageSource: "explicit",
     retention: "never",
     neverReason: "Linked from the Q3 retention design doc.",
-    createdAt: "2026-10-02T09:30:00Z",
+    createdAt: minutesAgo(59330),
     state: "live",
     views: 57,
     body: SQL,
@@ -279,7 +291,7 @@ export const PASTES: readonly Paste[] = [
     language: "bash",
     languageSource: "firstline",
     retention: "30d",
-    createdAt: "2026-10-01T09:12:00Z",
+    createdAt: minutesAgo(60788),
     state: "expired",
     views: 31,
     body: BASH,
@@ -291,7 +303,7 @@ export const PASTES: readonly Paste[] = [
     language: "log",
     languageSource: "scored",
     retention: "1h",
-    createdAt: "2026-09-03T13:20:00Z",
+    createdAt: minutesAgo(100860),
     state: "purged",
     views: 2,
     body: null,
@@ -305,7 +317,7 @@ export const PASTES: readonly Paste[] = [
     language: "dockerfile",
     languageSource: "scored",
     retention: "1y",
-    createdAt: "2026-08-19T12:00:00Z",
+    createdAt: minutesAgo(122540),
     state: "live",
     views: 41,
     body: DOCKER,
@@ -321,7 +333,7 @@ export const PASTES: readonly Paste[] = [
     language: "python",
     languageSource: "firstline",
     retention: "30d",
-    createdAt: "2026-11-11T09:30:00Z",
+    createdAt: minutesAgo(1730),
     state: "live",
     views: 5,
     body: PY,
@@ -337,7 +349,7 @@ export const PASTES: readonly Paste[] = [
     language: "plaintext",
     languageSource: "fallback",
     retention: "30d",
-    createdAt: "2026-11-02T16:48:00Z",
+    createdAt: minutesAgo(14252),
     state: "live",
     views: 412,
     body: SMOKE,
@@ -351,7 +363,7 @@ export const PASTES: readonly Paste[] = [
     language: "plaintext",
     languageSource: "fallback",
     retention: "1y",
-    createdAt: "2026-09-15T08:10:00Z",
+    createdAt: minutesAgo(83890),
     state: "live",
     views: 3,
     body: LAPTOP,
@@ -365,11 +377,11 @@ export const PASTES: readonly Paste[] = [
     language: "plaintext",
     languageSource: "fallback",
     retention: "30d",
-    createdAt: "2026-11-07T14:55:00Z",
+    createdAt: minutesAgo(7165),
     state: "purged",
     removedBy: {
       who: "ines",
-      at: "2026-11-08T09:40:00Z",
+      at: minutesAgo(6040),
       reason: "pii",
       request: 106,
     },
@@ -390,7 +402,7 @@ export const PASTES_BY_ID: Readonly<Record<string, Paste>> = Object.fromEntries(
 const AUDIT: Record<number, AuditEntry[]> = {
   105: [
     {
-      at: "2026-11-04T10:14:00Z",
+      at: minutesAgo(11766),
       actor: "deepika",
       kind: "person",
       action: "Saved past a finding",
@@ -398,28 +410,28 @@ const AUDIT: Record<number, AuditEntry[]> = {
         "Line 12, password, tier 2. Reason given: “Staging only, rotated after this deploy.”",
     },
     {
-      at: "2026-11-06T09:31:00Z",
+      at: minutesAgo(8929),
       actor: "security",
       kind: "person",
       action: "Asked for removal",
       detail: "Reason: a secret.",
     },
     {
-      at: "2026-11-06T10:02:00Z",
+      at: minutesAgo(8898),
       actor: "ines",
       kind: "person",
       action: "Redacted",
       detail: "Line 12 replaced with «redacted:password».",
     },
     {
-      at: "2026-11-06T10:02:00Z",
+      at: minutesAgo(8898),
       actor: "system",
       kind: "instrument",
       action: "Revision 2 written",
       detail: "The link now shows revision 2, with a notice.",
     },
     {
-      at: "2026-11-06T10:02:00Z",
+      at: minutesAgo(8898),
       actor: "system",
       kind: "instrument",
       action: "Revision 1 purged",
@@ -428,21 +440,21 @@ const AUDIT: Record<number, AuditEntry[]> = {
   ],
   106: [
     {
-      at: "2026-11-07T15:12:00Z",
+      at: minutesAgo(7148),
       actor: "rafael",
       kind: "person",
       action: "Asked for removal",
       detail: "Reason: personal data.",
     },
     {
-      at: "2026-11-08T09:40:00Z",
+      at: minutesAgo(6040),
       actor: "ines",
       kind: "person",
       action: "Deleted",
       detail: "Purged now, not 30 days after its expiry on 7 Dec.",
     },
     {
-      at: "2026-11-08T09:40:00Z",
+      at: minutesAgo(6040),
       actor: "system",
       kind: "instrument",
       action: "Revision 1 purged",
@@ -451,14 +463,14 @@ const AUDIT: Record<number, AuditEntry[]> = {
   ],
   107: [
     {
-      at: "2026-11-11T11:20:00Z",
+      at: minutesAgo(1620),
       actor: "marcus",
       kind: "person",
       action: "Asked for removal",
       detail: "Reason: a mistake.",
     },
     {
-      at: "2026-11-11T15:03:00Z",
+      at: minutesAgo(1397),
       actor: "ines",
       kind: "person",
       action: "Denied",
@@ -486,7 +498,7 @@ const REQUEST_SEEDS: RequestSeed[] = [
     justification:
       "Line 88 has a Slack bot token. It was rotated at 09:05; please redact the line and keep the rest.",
     status: "open",
-    openedAt: "2026-11-12T09:12:00Z",
+    openedAt: minutesAgo(308),
   },
   {
     id: 109,
@@ -497,7 +509,7 @@ const REQUEST_SEEDS: RequestSeed[] = [
     justification:
       "Olek left on 31 Oct. The notes include his home address, which he asked us to take down.",
     status: "open",
-    openedAt: "2026-11-11T16:40:00Z",
+    openedAt: minutesAgo(1300),
   },
   {
     id: 108,
@@ -508,7 +520,7 @@ const REQUEST_SEEDS: RequestSeed[] = [
     justification:
       "I pasted an old version of the query. The design doc should point at a new paste instead.",
     status: "open",
-    openedAt: "2026-11-10T13:05:00Z",
+    openedAt: minutesAgo(2955),
   },
   {
     id: 107,
@@ -519,9 +531,9 @@ const REQUEST_SEEDS: RequestSeed[] = [
     justification:
       "I meant to change the cap before forking. Please delete my fork.",
     status: "denied",
-    openedAt: "2026-11-11T11:20:00Z",
+    openedAt: minutesAgo(1620),
     decidedBy: "ines",
-    decidedAt: "2026-11-11T15:03:00Z",
+    decidedAt: minutesAgo(1397),
     note: "It’s cited from a code review, so it stays. It expires on 11 Dec; fork again with the new cap.",
   },
   {
@@ -533,9 +545,9 @@ const REQUEST_SEEDS: RequestSeed[] = [
     justification:
       "The sample rows are real customer emails, not the test fixture I thought I copied.",
     status: "deleted",
-    openedAt: "2026-11-07T15:12:00Z",
+    openedAt: minutesAgo(7148),
     decidedBy: "ines",
-    decidedAt: "2026-11-08T09:40:00Z",
+    decidedAt: minutesAgo(6040),
     note: "Customer emails. Removed now rather than at expiry.",
   },
   {
@@ -547,9 +559,9 @@ const REQUEST_SEEDS: RequestSeed[] = [
     justification:
       "Line 12 holds the staging database password. Rotated; please redact.",
     status: "redacted",
-    openedAt: "2026-11-06T09:31:00Z",
+    openedAt: minutesAgo(8929),
     decidedBy: "ines",
-    decidedAt: "2026-11-06T10:02:00Z",
+    decidedAt: minutesAgo(8898),
     note: "Redacted line 12. The rest of the values file is cited from the deploy runbook.",
   },
 ];
