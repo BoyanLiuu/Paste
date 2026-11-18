@@ -31,7 +31,16 @@ export const RETENTION: Record<RetentionCode, RetentionOption> = {
   never: { label: "Never", ms: null, needsReason: true },
 };
 
-export const RETENTION_CODES = Object.keys(RETENTION) as RetentionCode[];
+/** A const tuple, not Object.keys: z.enum needs literals to produce a literal union,
+ *  and casting to string[] silently widens `retention` to `string` everywhere
+ *  downstream. `satisfies` keeps this in step with the RetentionCode type. */
+export const RETENTION_CODES = [
+  "1h",
+  "1d",
+  "30d",
+  "1y",
+  "never",
+] as const satisfies readonly RetentionCode[];
 
 /** When a paste created at `createdAt` stops answering, or null for "never". */
 export function expiresAt(

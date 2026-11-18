@@ -1,105 +1,95 @@
-import { Badge } from "@/components/ui/badge";
+import { Suspense } from "react";
+import Link from "next/link";
+
+import { AppShell } from "@/components/app-shell";
+import { CreateForm } from "@/components/create-form";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
+import { NOW } from "@/lib/fixtures";
+import { SAMPLE_BODIES } from "@/lib/samples";
+import { getViewer } from "@/lib/server/viewer";
 
-// M0 scaffold: a proof that the prototype's tokens, both faces and the shadcn
-// components render together. M2 replaces this page with the create form.
+// The create screen (ux-01 – ux-12). Public: it renders for a signed-out visitor, and
+// M10 makes submitting prompt sign-in rather than the route refusing to load (§3).
+//
+// `cacheComponents` is on, so reading searchParams has to sit inside a Suspense
+// boundary — the shell and the hero prerender, and only the request-dependent part
+// streams. M10 brings the same constraint to getViewer() once it reads Clerk's cookies
+// instead of a fixture, so the boundary is already where it will be needed.
 
-const SWATCHES = [
-  { name: "paper", className: "bg-paper" },
-  { name: "paper-2", className: "bg-paper-2" },
-  { name: "paper-3", className: "bg-paper-3" },
-  { name: "rule", className: "bg-rule" },
-  { name: "ink-2", className: "bg-ink-2" },
-  { name: "ink", className: "bg-ink" },
-  { name: "brand", className: "bg-brand" },
-  { name: "cool", className: "bg-cool" },
-  { name: "ok", className: "bg-ok" },
-  { name: "bad", className: "bg-bad" },
-] as const;
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ sample?: string }>;
+}) {
+  const viewer = await getViewer();
 
-const SCALE = [
-  { token: "3xl", className: "text-3xl" },
-  { token: "2xl", className: "text-2xl" },
-  { token: "xl", className: "text-xl" },
-  { token: "lg", className: "text-lg" },
-  { token: "md", className: "text-md" },
-  { token: "sm", className: "text-sm" },
-  { token: "xs", className: "text-xs" },
-] as const;
-
-export default function Page() {
   return (
-    <main className="container-page flex flex-col gap-16 py-16">
-      <header className="flex flex-col gap-2">
-        <p className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
-          Project 25 · scaffold
-        </p>
-        <h1>Paste</h1>
-        <p className="text-ink-2 text-lg">
-          Paste once; the link keeps answering.
-        </p>
-      </header>
+    <AppShell viewer={viewer} current="new">
+      <div className="flex flex-col gap-16">
+        <section className="flex flex-col gap-6">
+          <h1 className="text-3xl">
+            Paste once.
+            <br />
+            The link keeps answering.
+          </h1>
+          <p className="text-ink-2 max-w-md text-lg">
+            Secrets are caught before saving; redaction and expiry never break
+            the link.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild>
+              <a href="#new">New paste</a>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/?sample=python#new">Open a sample paste</Link>
+            </Button>
+          </div>
+        </section>
 
-      <Separator />
+        <section id="new" className="flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-xl">New paste</h2>
+            <p className="text-muted-foreground">
+              Pick how long it lives now. There is no delete button later.
+            </p>
+          </div>
 
-      <section className="flex flex-col gap-4">
-        <h2>Type scale</h2>
-        <dl className="flex flex-col gap-2">
-          {SCALE.map(({ token, className }) => (
-            <div key={token} className="flex items-baseline gap-4">
-              <dt className="num text-muted-foreground w-12 shrink-0 font-mono text-xs">
-                {token}
-              </dt>
-              <dd className={className}>Immutable bytes, permanent link</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="font-mono text-sm">
-          at com.foo.Bar.baz(Bar.java:42) — Atkinson Hyperlegible Mono, the face
-          every body and log renders in
-        </p>
-      </section>
+          <Suspense fallback={<FormSkeleton />}>
+            <PresetForm searchParams={searchParams} />
+          </Suspense>
+        </section>
+      </div>
+    </AppShell>
+  );
+}
 
-      <Separator />
+/** Reads ?sample= so every designed state is reachable by URL rather than by typing
+ *  the right thing. Separated so only this subtree depends on the request. */
+async function PresetForm({
+  searchParams,
+}: {
+  searchParams: Promise<{ sample?: string }>;
+}) {
+  const { sample } = await searchParams;
+  const preset = sample === undefined ? undefined : SAMPLE_BODIES[sample];
 
-      <section className="flex flex-col gap-4">
-        <h2>Palette</h2>
-        <ul className="flex flex-wrap gap-3">
-          {SWATCHES.map(({ name, className }) => (
-            <li key={name} className="flex flex-col gap-1">
-              <span
-                className={`border-rule block size-16 rounded-md border ${className}`}
-              />
-              <span className="text-muted-foreground font-mono text-xs">
-                {name}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+  // `now` is fixed on the server, so the expiry panel and the eventual save cannot
+  // disagree and the screen is deterministic to screenshot.
+  return (
+    <CreateForm
+      now={NOW}
+      initialBody={preset?.body}
+      initialTitle={preset?.title}
+      oversized={preset?.oversized}
+    />
+  );
+}
 
-      <Separator />
-
-      <section className="flex flex-col gap-4">
-        <h2>Components</h2>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button>Save</Button>
-          <Button variant="secondary">Preview</Button>
-          <Button variant="outline">View raw</Button>
-          <Button variant="ghost">Cancel</Button>
-          <Button variant="destructive">Redact</Button>
-          <Badge>log</Badge>
-          <Badge variant="secondary">30 days</Badge>
-          <Badge variant="destructive">tier 1</Badge>
-        </div>
-        <div className="flex max-w-lg flex-col gap-3">
-          <Input placeholder="Title (optional)" />
-          <Textarea placeholder="Paste text here" rows={4} />
-        </div>
-      </section>
-    </main>
+function FormSkeleton() {
+  return (
+    <div
+      className="border-rule h-96 animate-pulse rounded-lg border"
+      aria-hidden="true"
+    />
   );
 }
