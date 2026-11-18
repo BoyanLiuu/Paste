@@ -12,6 +12,7 @@ import "server-only";
 import { PASTES, PASTES_BY_ID } from "@/lib/fixtures";
 import { RENDERS } from "@/lib/fixtures/renders.generated";
 import { DEFAULT_THEME, renderKey } from "@/lib/render/keys";
+import { livenessOf } from "@/lib/expiry/tombstone";
 import type { Cursor, Page, Paste, Viewer } from "@/lib/types";
 
 /** Rows per page on /list/:username. Keyset, so this is a slice size, not an offset. */
@@ -58,6 +59,36 @@ export async function getRaw(
   return PASTES_BY_ID[id]?.body ?? null;
 }
 
+export type ListFilter = "all" | "live" | "gone";
+
+export interface ListOptions {
+  cursor?: Cursor;
+  filter?: ListFilter;
+  /** Matches the title, the id and the language. Never the body — searching text is a
+   *  separate feature with its own privacy question (Appendix A). */
+  query?: string;
+}
+
+/** Counts and bytes across everything a person owns, not just the current page.
+ *
+ *  Separate from listPastes because it answers a different question: the filter tabs
+ *  and the "N pastes, M stored" line are about the whole collection. Deriving them
+ *  from one page made the tabs lie — "Gone 0" while two gone pastes sat on page 3. In
+ *  M8 this is a GROUP BY, not a scan. */
+export async function pasteSummary(
+  _viewer: Viewer,
+  username: string,
+): Promise<{ all: number; live: number; gone: number; bytes: number }> {
+  const mine = PASTES.filter((p) => p.owner === username);
+  let live = 0;
+  let bytes = 0;
+  for (const paste of mine) {
+    if (livenessOf(paste).kind === "live") live += 1;
+    bytes += paste.byteSize;
+  }
+  return { all: mine.length, live, gone: mine.length - live, bytes };
+}
+
 /** "<createdAt>,<id>" — stable under insertion, unlike an offset. */
 function cursorOf(paste: Paste): Cursor {
   return `${paste.createdAt},${paste.id}`;
@@ -73,12 +104,33 @@ function cursorOf(paste: Paste): Cursor {
 export async function listPastes(
   _viewer: Viewer,
   username: string,
-  cursor?: Cursor,
+  options: ListOptions = {},
 ): Promise<Page<Paste>> {
-  const mine = PASTES.filter((p) => p.owner === username).toSorted(
-    (a, b) =>
-      b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
-  );
+  const { cursor, filter = "all", query = "" } = options;
+  const needle = query.trim().toLowerCase();
+
+  // Filter and search run **before** paging, which is the only order that works: doing
+  // it after means a page of 50 rows yields however many survive, the tab counts
+  // describe one page rather than the collection, and a filter whose matches all sit
+  // on page 3 looks like it has none. M8 moves both into the WHERE clause; the shape
+  // of the answer does not change.
+  const mine = PASTES.filter((p) => p.owner === username)
+    .filter((p) => {
+      if (filter === "all") return true;
+      const live = livenessOf(p).kind === "live";
+      return filter === "live" ? live : !live;
+    })
+    .filter((p) =>
+      needle === ""
+        ? true
+        : [p.title ?? "", p.id, p.language].some((field) =>
+            field.toLowerCase().includes(needle),
+          ),
+    )
+    .toSorted(
+      (a, b) =>
+        b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
+    );
 
   // Seek past the cursor rather than counting into the list.
   //

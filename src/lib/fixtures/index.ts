@@ -160,7 +160,9 @@ function make(seed: Seed): Paste {
   };
 }
 
-export const PASTES: readonly Paste[] = [
+/** The hand-authored fixtures, one per designed state. `liveness.spec.ts` pins each
+ *  of these to the state it demonstrates. */
+export const DESIGNED_PASTES: readonly Paste[] = [
   // ---- the truncated case: 214 880 lines, only the first 500 served
   make({
     id: "Kp2sM7aJ",
@@ -393,6 +395,56 @@ export const PASTES: readonly Paste[] = [
     // a literal. Every other hash is computed from its body and cannot drift.
     sha256: "9f1dbc0d066464f0551b8f44e8e09f0320e44331acda21d8e197fde1875df94c",
   }),
+];
+
+/** Volume, so the list screen can actually be paged.
+ *
+ *  Deliberately separate from the designed fixtures: those represent distinct *states*
+ *  and this represents *quantity*, and mixing the two would make every state assertion
+ *  iterate 120 rows to check 14 things. All live, all small, all owned by one person.
+ *
+ *  Two of them share a `createdAt` on purpose. Keyset pagination orders on
+ *  `(createdAt, id)`, and a tie is where a row gets shown twice or skipped at a page
+ *  boundary — the fault `keyset-cursor.spec.ts` exists to catch. */
+const FILLER_LANGUAGES = [
+  "python",
+  "typescript",
+  "yaml",
+  "sql",
+  "bash",
+  "json",
+  "log",
+  "plaintext",
+] as const;
+
+function fillerPastes(count: number): Paste[] {
+  const out: Paste[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const language = FILLER_LANGUAGES[i % FILLER_LANGUAGES.length];
+    const body = `# filler ${i + 1}\nvalue = ${i + 1}\n`;
+    // Spaced two hours apart, starting a day back, so they sort below the designed
+    // pastes without colliding with them. Entries 40 and 41 share a timestamp.
+    const slot = i === 41 ? 40 : i;
+    out.push(
+      make({
+        id: `f${String(i + 1).padStart(3, "0")}aaaa`,
+        title: `Scratch ${i + 1}`,
+        language,
+        languageSource: "scored",
+        retention: "1y",
+        createdAt: minutesAgo(24 * 60 + slot * 120),
+        state: "live",
+        views: (i * 7) % 90,
+        body,
+      }),
+    );
+  }
+  return out;
+}
+
+export const PASTES: readonly Paste[] = [
+  ...DESIGNED_PASTES,
+  ...fillerPastes(110),
 ];
 
 export const PASTES_BY_ID: Readonly<Record<string, Paste>> = Object.fromEntries(

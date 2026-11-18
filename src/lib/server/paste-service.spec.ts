@@ -13,11 +13,9 @@ describe("listPastes", () => {
     // purged out of the list between requests — silently restarts pagination, so a
     // "load more" button appends the same rows forever.
     const first = await listPastes(VIEWER, "deepika");
-    const stale = await listPastes(
-      VIEWER,
-      "deepika",
-      "2020-01-01T00:00:00Z,GONE",
-    );
+    const stale = await listPastes(VIEWER, "deepika", {
+      cursor: "2020-01-01T00:00:00Z,GONE",
+    });
 
     expect(first.items.length).toBeGreaterThan(0);
     expect(stale.items).toEqual([]);
@@ -31,7 +29,7 @@ describe("listPastes", () => {
     const seen: string[] = [];
     let cursor: string | undefined;
     for (let guard = 0; guard < 20; guard += 1) {
-      const page = await listPastes(VIEWER, "deepika", cursor);
+      const page = await listPastes(VIEWER, "deepika", { cursor });
       seen.push(...page.items.map((p) => p.id));
       if (page.next === null) break;
       cursor = page.next;

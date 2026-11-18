@@ -50,11 +50,10 @@ export function PasteView({
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="flex min-w-0 flex-col gap-4">
-        {/* Not a link until M4 builds /list/:username. Next prefetches every Link on
-            the page, so pointing at an unbuilt route puts a 404 in the console where
-            it would mask a real one — and clicking it would show a 404 page. */}
         <nav className="text-muted-foreground text-sm">
-          <span>{paste.owner}’s pastes</span>
+          <Link href={`/list/${paste.owner}`} className="underline">
+            {paste.owner}’s pastes
+          </Link>
           <span aria-hidden="true"> / </span>
           <span>This paste</span>
         </nav>

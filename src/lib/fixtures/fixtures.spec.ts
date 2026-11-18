@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { PASTES, PASTES_BY_ID, REQUESTS } from "@/lib/fixtures";
+import {
+  DESIGNED_PASTES,
+  PASTES,
+  PASTES_BY_ID,
+  REQUESTS,
+} from "@/lib/fixtures";
 import { RENDERS } from "@/lib/fixtures/renders.generated";
 import { RETENTION_CODES } from "@/lib/expiry/retention";
 import { renderMode } from "@/lib/render/thresholds";
@@ -14,18 +19,18 @@ import type { PasteState } from "@/lib/types";
 describe("fixture coverage", () => {
   it("covers every paste state", () => {
     const states: PasteState[] = ["live", "expired", "purged", "redacted"];
-    const present = new Set(PASTES.map((p) => p.state));
+    const present = new Set(DESIGNED_PASTES.map((p) => p.state));
     expect([...present].toSorted()).toEqual(states.toSorted());
   });
 
   it("covers every retention code", () => {
-    const present = new Set(PASTES.map((p) => p.retention));
+    const present = new Set(DESIGNED_PASTES.map((p) => p.retention));
     expect([...present].toSorted()).toEqual([...RETENTION_CODES].toSorted());
   });
 
   it("covers all three rungs of the size ladder", () => {
     const modes = new Set(
-      PASTES.filter((p) => p.body !== null).map((p) =>
+      DESIGNED_PASTES.filter((p) => p.body !== null).map((p) =>
         renderMode(p.byteSize, p.lineCount),
       ),
     );
@@ -33,11 +38,13 @@ describe("fixture coverage", () => {
   });
 
   it("includes a fork, a never-paste with its reason, and a moderator removal", () => {
-    expect(PASTES.some((p) => p.forkedFrom !== null)).toBe(true);
+    expect(DESIGNED_PASTES.some((p) => p.forkedFrom !== null)).toBe(true);
     expect(
-      PASTES.some((p) => p.retention === "never" && p.neverReason !== null),
+      DESIGNED_PASTES.some(
+        (p) => p.retention === "never" && p.neverReason !== null,
+      ),
     ).toBe(true);
-    expect(PASTES.some((p) => p.removedBy !== null)).toBe(true);
+    expect(DESIGNED_PASTES.some((p) => p.removedBy !== null)).toBe(true);
   });
 });
 
@@ -45,7 +52,7 @@ describe("fixture integrity", () => {
   // The render table is generated from these bodies. If a body changes and nobody runs
   // `pnpm fixtures:render`, the view page silently serves the old highlighting.
   it("has a generated render for every body under the highlight threshold", () => {
-    const needRender = PASTES.filter(
+    const needRender = DESIGNED_PASTES.filter(
       (p) =>
         p.body !== null && renderMode(p.byteSize, p.lineCount) === "highlight",
     );
@@ -59,7 +66,7 @@ describe("fixture integrity", () => {
   });
 
   it("has no render for a body above the threshold", () => {
-    const tooBig = PASTES.filter(
+    const tooBig = DESIGNED_PASTES.filter(
       (p) =>
         p.body !== null && renderMode(p.byteSize, p.lineCount) !== "highlight",
     );
@@ -73,7 +80,7 @@ describe("fixture integrity", () => {
   // tombstone prove what used to be there, so a purged fixture with no hash would make
   // the receipt screen unbuildable.
   it("keeps a hash on every purged revision and no body", () => {
-    const purged = PASTES.filter((p) => p.state === "purged");
+    const purged = DESIGNED_PASTES.filter((p) => p.state === "purged");
     expect(purged.length).toBeGreaterThan(0);
     for (const paste of purged) {
       expect(
@@ -98,6 +105,17 @@ describe("fixture integrity", () => {
     }
   });
 
+  it("leaves the filler pastes unrendered, exercising the fallback", () => {
+    // Filler exists for list volume, not for review, so rendering 110 extra bodies
+    // would add hundreds of KB to a generated file nobody reads. Opening one takes
+    // the view page's null-render path, which is a supported case rather than a gap.
+    const filler = PASTES.filter((p) => p.id.startsWith("f"));
+    expect(filler.length).toBeGreaterThan(50);
+    for (const paste of filler.slice(0, 5)) {
+      expect(RENDERS[renderKey(revisionKey(paste.id, 1))]).toBeUndefined();
+    }
+  });
+
   it("points every removal request at a paste that exists", () => {
     for (const request of REQUESTS) {
       expect(
@@ -108,7 +126,7 @@ describe("fixture integrity", () => {
   });
 
   it("gives a redacted paste a purged revision 1 and a live revision 2", () => {
-    const redacted = PASTES.filter((p) => p.state === "redacted");
+    const redacted = DESIGNED_PASTES.filter((p) => p.state === "redacted");
     expect(redacted.length).toBeGreaterThan(0);
     for (const paste of redacted) {
       expect(paste.revisions).toHaveLength(2);

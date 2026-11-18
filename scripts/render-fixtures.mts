@@ -20,7 +20,7 @@ import {
   createHighlighter,
 } from "shiki";
 
-import { PASTES } from "@/lib/fixtures/index";
+import { DESIGNED_PASTES } from "@/lib/fixtures/index";
 import { renderKey, revisionKey } from "@/lib/render/keys";
 import { renderMode } from "@/lib/render/thresholds";
 
@@ -82,7 +82,7 @@ const GRAMMAR: Record<string, string> = {
 };
 
 async function main() {
-  const wanted = PASTES.filter(
+  const wanted = DESIGNED_PASTES.filter(
     (p) =>
       p.body !== null && renderMode(p.byteSize, p.lineCount) === "highlight",
   );
@@ -117,7 +117,7 @@ async function main() {
     );
   }
 
-  const skipped = PASTES.filter(
+  const skipped = DESIGNED_PASTES.filter(
     (p) =>
       p.body !== null && renderMode(p.byteSize, p.lineCount) !== "highlight",
   );

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { livenessOf } from "@/lib/expiry/tombstone";
-import { PASTES, PASTES_BY_ID } from "@/lib/fixtures";
+import { DESIGNED_PASTES, PASTES_BY_ID } from "@/lib/fixtures";
 
 // Catches the fixture rot that made a designed screen unreachable.
 //
@@ -35,7 +35,7 @@ describe("fixture liveness", () => {
     // Guards the guard: a new fixture with no expectation would otherwise be able to
     // rot unnoticed.
     expect(Object.keys(DESIGNED).toSorted()).toEqual(
-      PASTES.map((p) => p.id).toSorted(),
+      DESIGNED_PASTES.map((p) => p.id).toSorted(),
     );
   });
 

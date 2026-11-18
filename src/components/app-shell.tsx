@@ -28,11 +28,18 @@ export function AppShell({
             <NavLink href="/" active={current === "new"}>
               New paste
             </NavLink>
-            {/* The prototype's header also carries "My pastes" and the moderator
-                queue. They are omitted until their routes exist — M4 and M11 — because
-                a nav link that 404s on click is worse than an absent one, and Next
-                prefetches it on every page load, which puts a 404 in the console where
-                it would mask a real error. */}
+            {viewer.kind === "user" ? (
+              <NavLink
+                href={`/list/${viewer.user.username}`}
+                active={current === "pastes"}
+              >
+                My pastes
+              </NavLink>
+            ) : null}
+            {/* The moderator queue stays omitted until M11 builds /moderation. A nav
+                link that 404s on click is worse than an absent one, and Next
+                prefetches it on every page load, which puts a 404 in the console
+                where it would mask a real error. */}
           </nav>
 
           <div className="text-muted-foreground ml-auto text-sm">
