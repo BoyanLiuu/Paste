@@ -31,7 +31,7 @@ const ORIGIN = "http://localhost:3025";
 const USERNAME = `t-route-${randomUUID().slice(0, 8)}`;
 let userId: string;
 
-vi.mock("@/lib/server/viewer", async () => {
+vi.mock("@/lib/server/session", async () => {
   const real = await vi.importActual<typeof import("@/lib/server/viewer")>(
     "@/lib/server/viewer",
   );

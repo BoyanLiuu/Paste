@@ -16,7 +16,7 @@ import { BlockedBySecretScan, NeedsOverride } from "@/lib/server/create-paste";
 import { createPaste } from "@/lib/server/mutations";
 import { charge } from "@/lib/server/rate";
 import { userIdFor } from "@/lib/server/users";
-import { getViewer } from "@/lib/server/viewer";
+import { getViewer } from "@/lib/server/session";
 import { NotPermittedError } from "@/lib/server/viewer";
 import type { Viewer } from "@/lib/types";
 

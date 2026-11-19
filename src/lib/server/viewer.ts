@@ -1,14 +1,21 @@
 // Who is asking, and what they may do.
 //
-// Both functions exist from M1 with their final signatures even though phase 1 has no
-// identity provider. That is Appendix C rule 3: visibility rules get written once,
-// against fixtures, rather than reinvented against the database. M10 replaces the body
-// of getViewer() with Clerk's `auth()` and fills DENIED in — neither is a call-site
-// change.
+// Both functions have carried their final signatures since M1, when neither had an
+// identity provider behind it. That is Appendix C rule 3: visibility rules get written
+// once, against fixtures, rather than reinvented against the database. M10 replaced the
+// body of `getViewer()` with Clerk's `auth()` and filled in the capability table, and
+// NEITHER WAS A CALL-SITE CHANGE — every screen built in phases 1 and 2 reads a real
+// session now without moving.
+//
+// `getViewer()` itself lives in `@/lib/server/session` and is NOT re-exported from here.
+// Re-exporting was the first attempt at keeping call sites unchanged, and it defeated the
+// point: a re-export is an import, so Clerk went straight back onto the path of
+// `assertCan` → `mutations.ts` → most of the suite. The handful of call sites import from
+// `session` directly instead.
 
 import "server-only";
 
-import { USERS, VIEWER_USERNAME } from "@/lib/fixtures";
+import { can } from "@/lib/server/capabilities";
 import type { Capability, Paste, Viewer } from "@/lib/types";
 
 /** Thrown when a viewer lacks a capability. M10 maps this to 401 or 403. */
@@ -20,35 +27,15 @@ export class NotPermittedError extends Error {
 }
 
 /**
- * The current viewer.
- *
- * Phase 1 always resolves the same signed-in fixture user, so every screen can be built
- * in its signed-in state. Phase 3 reads Clerk. The `anon` arm already exists because
- * reads are public (§3) and the view page must render for a signed-out visitor.
- */
-export async function getViewer(): Promise<Viewer> {
-  // M10: const { userId } = await auth(); if (!userId) return { kind: "anon" };
-  return { kind: "user", user: USERS[VIEWER_USERNAME] };
-}
-
-/**
- * Capabilities a viewer does **not** have.
- *
- * Empty in phase 1 by design, so nothing is gated before there is an identity to gate
- * on. M10 fills it in, which makes gating a data change rather than a rewrite.
- */
-const DENIED: Partial<Record<Viewer["kind"], readonly Capability[]>> = {
-  // M10: anon: ["paste:create", "paste:fork", "removal:request", "removal:decide"],
-};
-
-/**
  * Assert a viewer may do something. Called by every mutation.
  *
- * Deliberately throws rather than returning a boolean: a permission check whose result
- * can be ignored eventually is.
+ * Deliberately throws rather than returning a boolean: a permission check whose result can
+ * be ignored eventually is. The table itself is `@/lib/server/capabilities` — M1 left an
+ * empty placeholder here and M10 filled it in there, keyed on §2's three actors rather
+ * than on `Viewer["kind"]`, which cannot tell a member from a moderator.
  */
 export function assertCan(viewer: Viewer, capability: Capability): void {
-  if (DENIED[viewer.kind]?.includes(capability)) {
+  if (!can(viewer, capability)) {
     throw new NotPermittedError(capability);
   }
 }

@@ -12,7 +12,7 @@ import {
   getPasteMeta,
   getRenderForPaste,
 } from "@/lib/server/paste-service";
-import { getViewer } from "@/lib/server/viewer";
+import { getViewer } from "@/lib/server/session";
 
 // GET /p/:id — the hot path (ux-14 – ux-27, ux-50, 52, 53, 54).
 //
@@ -41,9 +41,8 @@ export default async function Page({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const viewer = await getViewer();
   return (
-    <AppShell viewer={viewer} current={null}>
+    <AppShell current={null}>
       <Suspense fallback={<Loading />}>
         <Content params={params} />
       </Suspense>

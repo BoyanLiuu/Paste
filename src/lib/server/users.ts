@@ -25,6 +25,16 @@ import type { Viewer } from "@/lib/types";
 /**
  * The user row for a viewer, created if absent.
  *
+ * SINCE M10 THE CREATE ARM IS A TEST-ONLY PATH. `getViewer()` mints the local row on first
+ * sign-in, with `clerk_user_id` set, so a real session always arrives here with its row
+ * already present and this is a lookup. What still needs the create arm is a synthetic
+ * viewer — the test harness builds them with no Clerk user behind them — and keeping it
+ * additive means those tests do not need a separate seeding step.
+ *
+ * It deliberately does not write `clerk_user_id`: a row minted from a synthetic viewer has
+ * no Clerk user, and guessing one would create a row that `getViewer` would later match to
+ * the wrong person.
+ *
  * `username` is the natural key, not `clerkUserId`: the handle appears in
  * `/list/:username` and is ours and frozen (§3), while `clerk_user_id` is nullable and
  * unused until M10. Keying on Clerk's id now would mean every phase-2 row needs

@@ -31,6 +31,15 @@ export default defineConfig({
     // the output, so the cap did nothing and the suite passed on `DATABASE_POOL_MAX`
     // alone. A config key that is ignored rather than rejected is the worst kind to get
     // wrong, because the thing it was protecting still looks protected.
+    // 5 s is vitest's default and is written for unit tests. Most of this suite talks to a
+    // hosted Postgres — a single create exercises 220 scanner rules, a Shiki render and
+    // half a dozen round trips — and the files that call `vi.resetModules()` pay the
+    // highlighter's ~90 ms WASM warm-up again afterwards. `id-retry.spec.ts` began timing
+    // out intermittently at 5 s; it was never hanging, just slower than the default
+    // allows.
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
+
     maxWorkers: 4,
 
     // FILES RUN ONE AT A TIME, and this is a correctness setting rather than a tuning one.

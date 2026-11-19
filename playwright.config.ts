@@ -1,3 +1,8 @@
+// Loaded before anything reads `process.env`. Playwright does not read `.env` on its own,
+// and without this the e2e fixtures' `pg` client fell back to localhost:5432 and failed
+// with ECONNREFUSED — six tests failing for a reason that had nothing to do with the app.
+import "dotenv/config";
+
 import { defineConfig, devices } from "@playwright/test";
 
 // 3025 = project 25, not the shared default. Port 3000 is routinely occupied by
@@ -7,6 +12,10 @@ const PORT = 3025;
 
 export default defineConfig({
   testDir: "./tests/e2e",
+  // `.e2e.ts`, which is what the plan names these files. Playwright's default `testMatch`
+  // only picks up `.spec.` and `.test.`, so without this the suite reported "No tests
+  // found" and exited 1 — a green-looking run that had executed nothing.
+  testMatch: "**/*.e2e.ts",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

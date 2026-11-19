@@ -43,6 +43,27 @@ already gone wrong here — read it before assuming a surprising thing is a bug.
 - `orphans.sql` is **report-only** and deliberately not scheduled. A growing list is a bug
   in the sweeper's ordering, not untidy storage; automatic deletion would hide the cause.
 
+### Things Clerk must keep doing
+
+- **`ClerkProvider` lives in `src/app/sign-in/layout.tsx` and `sign-up/layout.tsx`, never the
+  root layout.** In the root it loads `clerk.browser.js` onto `/p/:id` — a remote
+  third-party script on the page that renders hostile text, which the view CSP then
+  blocks. `view-route-imports.spec.ts` now walks the layouts and catches it.
+- **`@clerk/nextjs/server` is fine anywhere; `@clerk/nextjs` is not** on the view route.
+  The first is `auth()` and ships nothing; the second is the client bundle.
+- **Any Server Component calling `auth()` must sit inside `<Suspense>`.**
+  `cacheComponents: true` fails the build otherwise. `AppShell` therefore takes no viewer —
+  its two session-dependent slots resolve their own behind their own boundaries.
+- **Two CSPs, never one.** `viewCsp` has no remote origin and no `unsafe-inline`; `clerkCsp`
+  has both and applies only to the Clerk UI routes. The origin is decoded from the
+  publishable key — hardcoding a dev instance breaks on first deploy.
+- **`proxy.ts` is a composition root.** The route behaviour is `lib/http/view-route.ts`,
+  separate because importing Clerk drags Next's React client context into anything that
+  imports it, which breaks every node-environment test.
+- Do not copy the inner response's headers blindly in `withStatus`:
+  `x-middleware-rewrite` holds a pathname and Clerk's wrapper parses it as a URL.
+- `curl` cannot create a paste: the CLI Bearer token from §3/§4 is unbuilt (Appendix G).
+
 ### Things that break the security model
 
 - **The scanner's rules must stay sorted by tier** (`src/lib/secrets/scan.ts`). The first

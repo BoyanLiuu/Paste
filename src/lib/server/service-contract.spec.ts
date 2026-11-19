@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import * as mutations from "@/lib/server/mutations";
 import { NotImplementedInStaticPhase } from "@/lib/server/mutations";
 import * as service from "@/lib/server/paste-service";
-import { getViewer } from "@/lib/server/viewer";
 import type { Viewer } from "@/lib/types";
 
 // Catches the signature drift that would make phase 2 a rewrite rather than a swap.
@@ -71,14 +70,17 @@ describe("service contract", () => {
   });
 });
 
-describe("viewer", () => {
-  it("resolves asynchronously, so M10 can await Clerk without a call-site change", async () => {
-    const returned = getViewer();
-    expect(returned).toBeInstanceOf(Promise);
-    const viewer = await returned;
-    expect(viewer.kind).toBe("user");
-  });
-});
+// The `getViewer` assertion that used to live here has moved to `session.spec.ts`.
+//
+// It read "resolves asynchronously, so M10 can await Clerk without a call-site change" and
+// it checked `viewer.kind === "user"` — true while the body returned a fixture, and false
+// now, because the honest answer with no session is `anon`. The forward-looking half of it
+// has been delivered: M10 replaced the body and no caller moved.
+//
+// It also cannot live in this file any more. `getViewer` imports Clerk, Clerk pulls Next's
+// app-router React context, and this spec runs in jsdom under the `react-server` condition
+// where `React.createContext` does not exist. `session.spec.ts` mocks Clerk instead, which
+// is the only way to assert anything about session resolution without a real request.
 
 describe("mutations", () => {
   const fns = exportedFunctions(mutations).filter(
@@ -103,17 +105,25 @@ describe("mutations", () => {
    *  the others land in M11, and each moves out of this list as it does. */
   const IMPLEMENTED = new Set(["createPaste"]);
 
+  // A SIGNED-IN viewer, because the capability table now actually denies.
+  //
+  // These assertions used an anonymous one, which worked while M1's denial table was
+  // empty. M10 filled it in, so an anonymous caller is refused by `assertCan` BEFORE the
+  // not-implemented throw — which is the correct order, and meant this test was no longer
+  // reaching the thing it was written to check.
+  const MEMBER: Viewer = {
+    kind: "user",
+    user: { username: "member", displayName: "Member", isModerator: true },
+  };
+
   // The message is shown by the "nothing was sent" screens and names the milestone that
   // implements it, so it is contract rather than debug text.
   it.each(fns.filter(([name]) => !IMPLEMENTED.has(name)))(
     "%s rejects with NotImplementedInStaticPhase",
     async (name, fn) => {
       await expect(
-        (fn as (...a: unknown[]) => Promise<unknown>)(VIEWER, "7fK2mQxZ", {}),
+        (fn as (...a: unknown[]) => Promise<unknown>)(MEMBER, "7fK2mQxZ", {}),
       ).rejects.toThrow(NotImplementedInStaticPhase);
-      await expect(
-        (fn as (...a: unknown[]) => Promise<unknown>)(VIEWER, "7fK2mQxZ", {}),
-      ).rejects.toThrow(/not implemented in the static phase/);
       expect(name).toBeTruthy();
     },
   );

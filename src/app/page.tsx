@@ -6,7 +6,7 @@ import { CreateForm } from "@/components/create-form";
 import { Button } from "@/components/ui/button";
 import { NOW } from "@/lib/fixtures";
 import { SAMPLE_BODIES } from "@/lib/samples";
-import { getViewer } from "@/lib/server/viewer";
+import { getViewer } from "@/lib/server/session";
 
 // The create screen (ux-01 – ux-12). Public: it renders for a signed-out visitor, and
 // M10 makes submitting prompt sign-in rather than the route refusing to load (§3).
@@ -21,10 +21,8 @@ export default async function Page({
 }: {
   searchParams: Promise<{ sample?: string }>;
 }) {
-  const viewer = await getViewer();
-
   return (
-    <AppShell viewer={viewer} current="new">
+    <AppShell current="new">
       <div className="flex flex-col gap-16">
         <section className="flex flex-col gap-6">
           <h1 className="text-3xl">

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatBytes, formatCount } from "@/lib/format";
 import { listPastes, pasteSummary } from "@/lib/server/paste-service";
-import { getViewer } from "@/lib/server/viewer";
+import { getViewer } from "@/lib/server/session";
 import type { Viewer } from "@/lib/types";
 
 // GET /list/:username (ux-28 – ux-33).
@@ -32,30 +32,31 @@ export default async function Page({
   params: Promise<{ username: string }>;
   searchParams: Promise<{ before?: string; filter?: string; q?: string }>;
 }) {
-  const viewer = await getViewer();
-
   // `params` is awaited inside the boundary, not here: reading it in the outer
   // component makes the whole page request-dependent and prerendering fails under
   // `cacheComponents`. The shell needs nothing from it.
   return (
-    <AppShell viewer={viewer} current="pastes">
+    <AppShell current="pastes">
       <Suspense fallback={<Loading />}>
-        <Listing viewer={viewer} params={params} searchParams={searchParams} />
+        <Listing params={params} searchParams={searchParams} />
       </Suspense>
     </AppShell>
   );
 }
 
 async function Listing({
-  viewer,
   params,
   searchParams,
 }: {
-  viewer: Viewer;
   params: Promise<{ username: string }>;
   searchParams: Promise<{ before?: string; filter?: string; q?: string }>;
 }) {
   await connection();
+
+  // Resolved HERE rather than in the page body, which is what `cacheComponents` requires:
+  // `getViewer()` calls Clerk's `auth()`, a request read, and a request read outside a
+  // Suspense boundary fails the production build. This component is already inside one.
+  const viewer = await getViewer();
 
   const { username } = await params;
   const { before, filter: rawFilter, q } = await searchParams;

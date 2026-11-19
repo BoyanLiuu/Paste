@@ -8,12 +8,9 @@
 // the defence for when content-type handling fails, and the blast radius of that is
 // every session on the app. See src/lib/urls.ts.
 
+import { noCache, rawCacheControl } from "@/lib/http/cache";
 import { livenessOf, tombstoneFor } from "@/lib/expiry/tombstone";
-import {
-  cacheControlFor,
-  RAW_CSP,
-  TOMBSTONE_CACHE_CONTROL,
-} from "@/lib/http/csp";
+import { RAW_CSP } from "@/lib/http/csp";
 import { formatDate } from "@/lib/format";
 import { getPaste, getRaw } from "@/lib/server/paste-service";
 import type { Viewer } from "@/lib/types";
@@ -83,7 +80,7 @@ export async function rawResponse(
       status: 410,
       headers: {
         ...baseHeaders("inline", `${id}.txt`),
-        "cache-control": TOMBSTONE_CACHE_CONTROL,
+        "cache-control": noCache(),
       },
     });
   }
@@ -102,7 +99,7 @@ export async function rawResponse(
     status: 200,
     headers: {
       ...baseHeaders(kind, filenameFor(id, paste.title)),
-      "cache-control": cacheControlFor(paste.expiresAt),
+      "cache-control": rawCacheControl({ expiresAt: paste.expiresAt }),
     },
   });
 }

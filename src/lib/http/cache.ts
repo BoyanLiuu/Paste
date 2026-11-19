@@ -65,6 +65,22 @@ export function liveCacheControl(options: CacheOptions): string {
 }
 
 /**
+ * `Cache-Control` for the RAW origin, which may be shared-cached.
+ *
+ * `public` here and `private` for the HTML page, and the difference is the nonce rather
+ * than the audience. Both serve the same bytes to anyone with the id; only the page
+ * carries a per-request CSP nonce, and a shared cache storing that hands every reader the
+ * same nonce for the window. `/raw` has no nonce, no cookies and `CSP: sandbox`, so there
+ * is nothing per-request in the response to leak — and it is the endpoint most worth
+ * caching, since the copy button and every CLI fetch go through it.
+ */
+export function rawCacheControl(options: CacheOptions): string {
+  const maxAge = maxAgeFor(options);
+  if (maxAge === 0) return noCache();
+  return `public, max-age=${maxAge}, must-revalidate`;
+}
+
+/**
  * `Cache-Control` for a tombstone, and for anything whose answer must not be reused.
  *
  * A 410 is cached by some intermediaries by default, and a moderator un-expiring a paste

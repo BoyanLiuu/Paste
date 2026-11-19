@@ -48,19 +48,81 @@ export function viewCsp(nonce: string): string {
   ].join("; ");
 }
 
+/**
+ * The Clerk UI pages, and ONLY those (ARCHITECTURE §6.5).
+ *
+ * `ClerkProvider` loads `clerk.browser.js` from the instance's own frontend-API origin, so
+ * that origin has to be in `script-src` wherever the provider renders. Measured on the
+ * running server after `clerk init`: with the provider in the root layout, `/p/:id` pulled
+ * that remote script — a third-party origin on the page whose entire job is rendering
+ * attacker-supplied text. The provider now lives in a layout covering these two routes,
+ * and this is the policy they get.
+ *
+ * `'unsafe-inline'` for styles, because Clerk's components inject them. That is precisely
+ * why this is a separate policy rather than an addition to `viewCsp`: one global policy
+ * written to satisfy Clerk would hand `'unsafe-inline'` to the view page, which is the
+ * thing the whole section exists to prevent.
+ *
+ * THE ORIGIN IS DERIVED FROM THE PUBLISHABLE KEY, not hardcoded. The key is
+ * `pk_(test|live)_<base64 of the frontend API host>$`, so decoding it gives this
+ * instance's host — and a development and a production instance differ. Hardcoding
+ * a specific instance host would work today and silently break on the first
+ * deploy, with Clerk's own script blocked by our own header.
+ */
+export function clerkFrontendOrigin(): string | null {
+  const key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+  const encoded = key.replace(/^pk_(test|live)_/, "");
+  if (encoded === "" || encoded === key) return null;
+
+  try {
+    const host = Buffer.from(encoded, "base64")
+      .toString("utf8")
+      .replace(/\$$/, "");
+    return /^[a-z0-9.-]+$/i.test(host) && host.includes(".")
+      ? `https://${host}`
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clerkCsp(): string {
+  const origin = clerkFrontendOrigin();
+  // Unset or unparseable: fall back to the strict policy rather than a permissive one. A
+  // broken sign-in page is a visible failure; a wildcard script-src is not.
+  const script = origin === null ? "'self'" : `'self' ${origin}`;
+
+  return [
+    "default-src 'none'",
+    `script-src ${script}`,
+    // Clerk's components inject styles and load images from its CDN.
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' https://img.clerk.com data:",
+    `connect-src 'self'${origin === null ? "" : ` ${origin}`} https://clerk-telemetry.com`,
+    "font-src 'self'",
+    "form-action 'self'",
+    // Clerk renders its CAPTCHA in a frame on the instance origin.
+    `frame-src ${origin === null ? "'none'" : origin}`,
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+    "worker-src 'self' blob:",
+  ].join("; ");
+}
+
 /** The raw origin. `sandbox` with no allow-list means the response has no origin
  *  privileges at all — defence in depth for the case where content-type handling
  *  fails, which is the failure this endpoint's separate domain exists for. */
 export const RAW_CSP = "sandbox";
 
-/** Capped at the remaining TTL, so a cached 200 cannot outlive the expiry it was
- *  cached before. Sixty seconds is the ceiling, not the value (§6.3). */
-export function cacheControlFor(expiresAt: string | null): string {
-  if (expiresAt === null) return "public, max-age=60, must-revalidate";
-  const seconds = Math.floor((Date.parse(expiresAt) - Date.now()) / 1000);
-  if (seconds <= 0) return "no-store";
-  return `public, max-age=${Math.min(60, seconds)}, must-revalidate`;
-}
-
-/** Once gone, always gone, so a tombstone is free to cache for an hour. */
-export const TOMBSTONE_CACHE_CONTROL = "public, max-age=3600";
+// Cache headers live in `@/lib/http/cache`, not here.
+//
+// This module had its own `cacheControlFor` and a `TOMBSTONE_CACHE_CONTROL` of
+// `public, max-age=3600`, and both were wrong in ways that only show up side by side with
+// the page's headers:
+//
+//   - It was a second implementation of `min(60, ttl)`, free to drift from the first.
+//   - An hour-long cached tombstone contradicts the grace window. A moderator can
+//     un-expire a paste for 30 days after it lapses (§6.4), and a cached 410 outlives the
+//     decision that reversed it — on the endpoint a script is most likely to retry.
+//
+// Tombstones are now `no-store` on both the page and the raw origin.

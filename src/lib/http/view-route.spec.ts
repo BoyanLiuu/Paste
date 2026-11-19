@@ -16,6 +16,13 @@
 // a page no way to set one: `notFound()` is the only status API, and the route is
 // partially prerendered so the shell answers with its own 200 before the dynamic part
 // resolves. `proxy.ts` explains the two approaches that failed.
+//
+// Lives beside `view-route.ts` rather than beside `proxy.ts`, and that split is load
+// bearing: `proxy.ts` imports `clerkMiddleware`, which pulls React's client context into
+// anything that imports it, and these tests run in a node environment where
+// `React.createContext` does not exist. Separating the route logic from the middleware
+// composition means the status decision can be tested without constructing a Clerk
+// session to do it.
 
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
@@ -43,8 +50,8 @@ async function statusFor(path: string): Promise<number> {
     .mockResolvedValue(new Response("<html>page</html>", { status: 200 }));
 
   try {
-    const { proxy } = await import("@/proxy");
-    const response = await proxy(
+    const { viewRoute } = await import("@/lib/http/view-route");
+    const response = await viewRoute(
       new NextRequest(`http://localhost:3025${path}`),
     );
     return response.status;
@@ -111,10 +118,10 @@ describe.skipIf(reason !== null)(
 
         const fetchSpy = vi.spyOn(globalThis, "fetch");
         try {
-          const { proxy } = await import("@/proxy");
+          const { viewRoute } = await import("@/lib/http/view-route");
           // The inner half of the self-fetch. Without the marker header the proxy would
           // call itself forever, each call doing another database lookup.
-          const response = await proxy(
+          const response = await viewRoute(
             new NextRequest(`http://localhost:3025/p/${id}`, {
               headers: { "x-paste-internal": "1" },
             }),
@@ -149,8 +156,8 @@ describe.skipIf(reason !== null)(
           );
 
         try {
-          const { proxy } = await import("@/proxy");
-          await proxy(new NextRequest(`http://evil.example/p/${id}`));
+          const { viewRoute } = await import("@/lib/http/view-route");
+          await viewRoute(new NextRequest(`http://evil.example/p/${id}`));
 
           if (fetchSpy.mock.calls.length > 0) {
             const target = String(
@@ -172,10 +179,10 @@ describe.skipIf(reason !== null)(
         clearLivenessMemo();
         const [id] = await seedPastes(owner.userId, [{ expiresInMinutes: 60 }]);
 
-        const { proxy } = await import("@/proxy");
+        const { viewRoute } = await import("@/lib/http/view-route");
         const nonces = new Set<string>();
         for (let i = 0; i < 3; i += 1) {
-          const response = await proxy(
+          const response = await viewRoute(
             new NextRequest(`http://localhost:3025/p/${id}`),
           );
           const csp = response.headers.get("content-security-policy");
