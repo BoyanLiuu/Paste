@@ -34,6 +34,28 @@ export function RangeSelectMount({ targetId }: { targetId: string }) {
 }
 
 /**
+ * Copy an arbitrary value. The primitive the other two are built on.
+ *
+ * EXPORTED FROM HERE, which is a constraint rather than a preference. N11 budgets ONE
+ * `"use client"` module on the view route and `view-page-budget.spec.ts` enforces it by
+ * counting modules in that route's graph — so a shared `copy-button.tsx` imported by this
+ * file would make two, and raising a stated architectural number to tidy a file is the
+ * wrong trade. The create receipt imports this instead, which costs that page nothing: it
+ * is already a client component and has no budget.
+ */
+export function CopyValue({
+  value,
+  label,
+  doneLabel,
+}: {
+  value: string;
+  label: string;
+  doneLabel: string;
+}) {
+  return <CopyButton label={label} doneLabel={doneLabel} read={() => value} />;
+}
+
+/**
  * Copy the body text, read from the DOM rather than passed in.
  *
  * READ FROM THE DOM, and that is a size decision. Passing the body as a prop would put a
@@ -57,6 +79,7 @@ export function CopyBody({ targetId }: { targetId: string }) {
   return (
     <CopyButton
       label="Copy"
+      doneLabel="Copied"
       read={() => document.getElementById(targetId)?.innerText ?? ""}
     />
   );
@@ -64,7 +87,13 @@ export function CopyBody({ targetId }: { targetId: string }) {
 
 /** Copy this paste's permalink. The other half of ux-16's action row. */
 export function CopyLink() {
-  return <CopyButton label="Copy link" read={() => window.location.href} />;
+  return (
+    <CopyButton
+      label="Copy link"
+      doneLabel="Link copied"
+      read={() => window.location.href}
+    />
+  );
 }
 
 /**
@@ -75,7 +104,15 @@ export function CopyLink() {
  * the user noticed — so without the held state the button is indistinguishable from a
  * button that does nothing.
  */
-function CopyButton({ label, read }: { label: string; read: () => string }) {
+function CopyButton({
+  label,
+  doneLabel,
+  read,
+}: {
+  label: string;
+  doneLabel: string;
+  read: () => string;
+}) {
   const [state, setState] = useState<"idle" | "done" | "failed">("idle");
 
   // THE TIMER IS CLEANED UP. Without this, clicking copy and navigating away inside the
@@ -99,7 +136,8 @@ function CopyButton({ label, read }: { label: string; read: () => string }) {
     }
   }
 
-  const shown = state === "idle" ? label : messageFor(state, label);
+  const shown =
+    state === "idle" ? label : state === "failed" ? "Copy failed" : doneLabel;
 
   return (
     <>
@@ -122,9 +160,4 @@ function CopyButton({ label, read }: { label: string; read: () => string }) {
       </span>
     </>
   );
-}
-
-function messageFor(state: "done" | "failed", label: string): string {
-  if (state === "failed") return "Copy failed";
-  return label === "Copy link" ? "Link copied" : "Copied";
 }

@@ -133,11 +133,31 @@ export async function viewRoute(
       path === "/sign-up" ||
       path.startsWith("/sign-up/")
     ) {
-      const response = NextResponse.next();
       // A real policy on the Clerk pages rather than none, which is what they had when the
       // matcher covered only /p/*. It permits Clerk's frontend API and nothing else —
       // §6.5's point is one strict policy per page, not one loose policy everywhere.
-      response.headers.set("content-security-policy", clerkCsp());
+      //
+      // AND IT CARRIES A NONCE, the same way /p/* does. Without one these pages were blank
+      // on a hard load: Next's hydration bootstrap and the RSC payload are inline scripts,
+      // so a policy with no nonce blocks the framework before Clerk is reached. The failure
+      // was invisible on a client-side navigation — the document then came from `/`, which
+      // has no policy at all — and invisible to a status check, because the blank document
+      // is a 200. I probed this route earlier in the same session, read the 200, and moved
+      // on.
+      //
+      // Next reads the nonce off the REQUEST's `script-src` to stamp its own scripts, so
+      // both headers have to be set on the forwarded request, not just on the response.
+      const nonce = crypto.randomUUID();
+      const csp = clerkCsp(nonce);
+
+      const clerkHeaders = new Headers(request.headers);
+      clerkHeaders.set("x-nonce", nonce);
+      clerkHeaders.set("content-security-policy", csp);
+
+      const response = NextResponse.next({
+        request: { headers: clerkHeaders },
+      });
+      response.headers.set("content-security-policy", csp);
       return response;
     }
     return NextResponse.next();

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
@@ -88,6 +89,7 @@ export function CreateForm({
   initialTitle = "",
   oversized = false,
 }: Props) {
+  const router = useRouter();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   /** Findings from the last submit attempt, which is what the panel shows. The live
    *  badge uses the debounced scan separately — the panel only ever reflects a scan of
@@ -209,7 +211,27 @@ export function CreateForm({
     }
 
     if (response.status === 201 && payload?.id !== undefined) {
-      setReceipt({ kind: "saved", id: payload.id });
+      // THE SAVED STATE GOES IN THE URL, unlike every refusal below, which stays local.
+      //
+      // Two bugs came from holding it here. The page's "New paste / Pick how long it lives
+      // now" heading is rendered by the server component above this one, which cannot see
+      // this state — so it sat above the receipt telling someone to choose a retention for
+      // a paste they had already saved. And the "New paste" controls in the hero and the
+      // nav are links to `/` and `/#new`: from `/` those are not navigations at all, so
+      // they changed the address bar and left the receipt on screen.
+      //
+      // With `?saved=<id>` the page owns the decision, the heading disappears with the
+      // form, and every "New paste" link becomes a real navigation away from a different
+      // URL. Refreshing also keeps the link rather than losing it, which matters on the one
+      // screen whose output is a thing you are about to paste somewhere else.
+      //
+      // The refusals stay local deliberately: each one carries text that was never sent,
+      // and a navigation would discard it.
+      // `scroll: false` because the receipt replaces the form IN PLACE. Next scrolls to
+      // the top of the document on a navigation by default, which put the hero back on
+      // screen and the confirmation below the fold — so the reward for saving was a page
+      // that appeared to have forgotten.
+      router.replace(`/?saved=${payload.id}`, { scroll: false });
       return;
     }
 
@@ -276,11 +298,22 @@ export function CreateForm({
             <Label htmlFor="body">Text</Label>
             <ScanBadge live={live} />
           </div>
+          {/* `field-sizing-fixed` IS THE POINT OF THIS className. The shadcn base carries
+              `field-sizing-content`, which grows the control with its content — so
+              `rows={16}` was being ignored and a 40-line sample pushed the whole page
+              down, taking the expiry panel with it. The panel is the thing §6.3 wants read
+              before saving, so a box that scrolls the page instead of itself buries the
+              one piece of information the screen exists to surface.
+
+              With content sizing off, `rows` governs the height natively and the textarea
+              scrolls internally — no hardcoded pixel height to go stale against the font.
+              `resize-y` keeps the control growable on purpose, which is different from
+              growing on its own. */}
           <Textarea
             id="body"
             rows={16}
             spellCheck={false}
-            className="font-mono text-sm"
+            className="field-sizing-fixed resize-y font-mono text-sm"
             {...form.register("body")}
           />
           <p className="text-muted-foreground text-xs">

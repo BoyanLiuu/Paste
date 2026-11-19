@@ -72,6 +72,23 @@ export default defineConfig({
     // the same files. Stubbing the package instead would hide a real misuse.
     conditions: ["react-server"],
   },
+  // A KNOWN GAP, recorded where someone would hit it: component tests cannot run.
+  //
+  // `server-only` and `react-dom/client` want OPPOSITE resolve conditions. The service
+  // layer needs `react-server` — that is what routes `server-only` to an empty module and
+  // lets the suite import the files the app guards. But `react-dom/client` also has a
+  // `react-server` entry and it THROWS, so `@testing-library/react` cannot load and
+  // nothing can be rendered in a test.
+  //
+  // Four ways out were tried and none worked: a `projects` entry with `conditions: []`
+  // (read as "no override"), with the web conditions spelled out, with `extends: true`
+  // (Vite MERGES condition arrays rather than replacing them, so `react-server` survives),
+  // and as a standalone project repeating the plugin and alias.
+  //
+  // The cost is real and was paid once already: the save receipt's `saved` branch stayed
+  // the thinnest of its seven states for five milestones, because an e2e run cannot reach
+  // it without a Clerk session and a component test could not load. Rules worth holding
+  // get extracted to pure modules instead — see `src/lib/paste-url.ts`.
   ssr: {
     resolve: {
       // The same condition again, for files that opt into `@vitest-environment node`.

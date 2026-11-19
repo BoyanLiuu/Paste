@@ -60,13 +60,39 @@ describe("the view page's policy", () => {
 });
 
 describe("the Clerk pages' policy", () => {
-  const csp = clerkCsp();
+  const csp = clerkCsp("n0nce");
 
   it("is a different policy, not the view policy with additions", () => {
-    expect(csp).not.toBe(viewCsp("n"));
-    // It has no nonce: Clerk's own script is allowed by origin, and inventing a nonce here
-    // would imply the sign-in page streams Suspense content the way the view page does.
-    expect(csp).not.toContain("nonce-");
+    expect(csp).not.toBe(viewCsp("n0nce"));
+  });
+
+  it("carries a nonce, without which the page is blank on a hard load", () => {
+    // THIS TEST ASSERTED THE OPPOSITE, and the bug lived inside the assertion.
+    //
+    // It read: "It has no nonce: Clerk's own script is allowed by origin, and inventing a
+    // nonce here would imply the sign-in page streams Suspense content the way the view
+    // page does." Confident, specific, and wrong about what the nonce is for. The nonce is
+    // not about Suspense — it is about Next's HYDRATION BOOTSTRAP and the RSC payload,
+    // which travel in inline scripts on every page. `script-src 'self' <clerk origin>`
+    // blocks both, so the document arrived and nothing executed: /sign-in was a blank
+    // screen on reload and perfectly fine on a client-side navigation, because that
+    // document came from `/` and carried no policy at all.
+    //
+    // Found by a human reloading the page. No test looked, and a status probe could not
+    // have seen it: a blank document is a 200.
+    expect(csp).toContain("'nonce-n0nce'");
+    expect(clerkCsp("other")).not.toContain("'nonce-n0nce'");
+  });
+
+  it("does not permit inline SCRIPTS even though it permits inline styles", () => {
+    // The distinction the nonce exists to preserve. `'unsafe-inline'` on `style-src` is
+    // the concession Clerk's components need; the same keyword on `script-src` would make
+    // the nonce decorative and hand an injected script a working policy.
+    const scriptSrc = csp
+      .split(";")
+      .map((part) => part.trim())
+      .find((part) => part.startsWith("script-src"))!;
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
   });
 
   it("permits inline styles, which is exactly why it is separate", () => {
@@ -94,7 +120,11 @@ describe("the Clerk pages' policy", () => {
       return;
     }
 
-    expect(csp).toContain(`script-src 'self' ${origin}`);
+    // The origin is in `script-src`, beside the nonce rather than instead of it. Asserted
+    // on the directive rather than on an exact string, so adding a source does not fail a
+    // test about the origin being present.
+    expect(csp).toContain(`'nonce-n0nce' ${origin}`);
+    expect(csp).toContain(`connect-src 'self' ${origin}`);
     expect(origin).toMatch(/^https:\/\//);
   });
 

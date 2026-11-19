@@ -86,11 +86,20 @@ export function clerkFrontendOrigin(): string | null {
   }
 }
 
-export function clerkCsp(): string {
+export function clerkCsp(nonce: string): string {
   const origin = clerkFrontendOrigin();
   // Unset or unparseable: fall back to the strict policy rather than a permissive one. A
   // broken sign-in page is a visible failure; a wildcard script-src is not.
-  const script = origin === null ? "'self'" : `'self' ${origin}`;
+  // THE NONCE IS NOT OPTIONAL, and leaving it out is what broke the sign-in page on a hard
+  // load. Next's hydration bootstrap and the RSC payload travel in INLINE scripts, so a
+  // `script-src` of `'self'` plus a remote origin blocks the framework before Clerk is even
+  // reached — the document arrives, nothing executes, and the page is blank. A client-side
+  // navigation hid it completely: the document then came from `/`, which carries no policy,
+  // and this header never applied.
+  const script =
+    origin === null
+      ? `'self' 'nonce-${nonce}'`
+      : `'self' 'nonce-${nonce}' ${origin}`;
 
   return [
     "default-src 'none'",
