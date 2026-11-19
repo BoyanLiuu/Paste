@@ -55,18 +55,28 @@ test.describe("signed out", () => {
     expect(body).toContain("def greet");
   });
 
-  test("the raw and download endpoints serve bytes", async ({ request }) => {
+  test("the download endpoint serves bytes", async ({ request }) => {
     const { id, body } = await seed({ body: "line one\nline two\n" });
-
-    const raw = await request.get(`/raw/${id}`);
-    expect(raw.status()).toBe(200);
-    expect(raw.headers()["content-type"]).toContain("text/plain");
-    // Byte-for-byte, because this is what a CLI pipes into a file.
-    expect(await raw.text()).toBe(body);
 
     const download = await request.get(`/dl/${id}`);
     expect(download.status()).toBe(200);
+    // Byte-for-byte, because this is what lands in the reader's file.
+    expect(await download.text()).toBe(body);
     expect(download.headers()["content-disposition"]).toContain("attachment");
+  });
+
+  test("there is no inline byte endpoint", async ({ request }) => {
+    const { id } = await seed({ body: "line one\n" });
+
+    // `/raw/:id` SERVED THESE BYTES INLINE and is gone. That is the change that let the app
+    // ship on one domain: inline bytes are one content-type mistake away from being a page,
+    // and a page on the app's own origin runs with the reader's session — so §6.5 required a
+    // second registrable domain to hold them. An attachment has no origin to execute in,
+    // so there is nothing left to isolate.
+    //
+    // Asserted rather than assumed, because a route file is one `git revert` away from
+    // coming back and nothing else in the suite would notice.
+    expect((await request.get(`/raw/${id}`)).status()).toBe(404);
   });
 
   test("anyone's list page reads", async ({ page }) => {

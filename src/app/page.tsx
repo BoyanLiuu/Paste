@@ -73,8 +73,21 @@ async function PresetForm({
 
   // `now` is fixed on the server, so the expiry panel and the eventual save cannot
   // disagree and the screen is deterministic to screenshot.
+  //
+  // THE `key` IS WHAT MAKES THE SAMPLE LINKS WORK, and without it they silently did not.
+  // `/?sample=python` is the same route, so clicking a sample link is a client-side
+  // navigation: this server component re-runs and sends a new `initialBody`, but React
+  // reconciles `CreateForm` in place rather than remounting it — and react-hook-form reads
+  // `defaultValues` only on the first render. The URL changed, the prop changed, and the
+  // textarea stayed empty. `create-form.tsx` even documents that RHF reads defaults once;
+  // what nobody noticed is that the prop can change afterwards.
+  //
+  // Keying on the sample remounts the form, which is exactly the semantics of picking a
+  // sample: replace what is in the box. The alternative — `form.reset()` in an effect —
+  // does the same thing with an extra render and a dependency array to get wrong.
   return (
     <CreateForm
+      key={sample ?? "blank"}
       now={NOW}
       initialBody={preset?.body}
       initialTitle={preset?.title}

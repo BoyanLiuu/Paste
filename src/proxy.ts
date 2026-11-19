@@ -26,7 +26,7 @@ import { viewRoute } from "@/lib/http/view-route";
 // run on, and the create form, the list page and the view page all resolve a viewer.
 // Static assets and `_next` are excluded: running auth on a font is pure latency.
 //
-// A NOTE ON THE PLAN. It specifies a public-route allowlist here — `/p/(.*)`, `/raw/(.*)`
+// A NOTE ON THE PLAN. It specifies a public-route allowlist here — `/p/(.*)`, `/dl/(.*)`
 // and friends marked public — and warns that a careless matcher protects the view page and
 // breaks the product's premise. Clerk 7 inverts that default: routes are public unless
 // something calls `auth.protect()`, so there is no allowlist to get wrong. Protection

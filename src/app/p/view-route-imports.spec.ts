@@ -8,11 +8,9 @@
 //
 // Written in M3 while it is trivially green. By M7 the import is one autocomplete away.
 
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { moduleGraph, ROOT, VIEW_ROUTE_ENTRIES } from "@/app/p/module-graph";
+import { moduleGraph, VIEW_ROUTE_ENTRIES } from "@/app/p/module-graph";
 
 // The walker and the entry list moved to `./module-graph.ts` at M12, when the client-JS
 // budget needed the same graph. Its comment explains why the LAYOUTS are in that list.
@@ -84,19 +82,9 @@ describe("the view route's module graph", () => {
     },
   );
 
-  it("ships exactly one client component", () => {
-    // N11: one client script on this page. Any other "use client" module in the graph
-    // is a second bundle on the page that renders hostile content.
-    const clientModules = [...graph.keys()].filter((name) => {
-      if (!name.startsWith("src/")) return false;
-      try {
-        return /^\s*["']use client["']/m.test(
-          readFileSync(resolve(ROOT, name), "utf8"),
-        );
-      } catch {
-        return false;
-      }
-    });
-    expect(clientModules).toEqual(["src/components/range-select-mount.tsx"]);
-  });
+  // N11's client-module count lived here and moved to `view-page-budget.spec.ts`, which
+  // owns it properly: this copy tested `/^\s*["']use client["']/m`, which matches the
+  // directive at the start of ANY line — so a comment quoting the rule read as a client
+  // component. It also only counted, where the budget test names the module, so deleting
+  // the selection listener and adding a toast would have balanced out and passed.
 });

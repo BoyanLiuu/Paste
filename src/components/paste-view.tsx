@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import type { ForkProblem } from "@/lib/fork-problem";
-import { RangeSelectMount } from "@/components/range-select-mount";
+import { CopyBody, CopyLink, RangeSelectMount } from "@/components/body-tools";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import {
 import { RETENTION } from "@/lib/expiry/retention";
 import { renderPlain, withLineIds } from "@/lib/render/gutter";
 import { renderMode, TRUNCATE_LINES } from "@/lib/render/thresholds";
-import { rawUrl, downloadUrl } from "@/lib/urls";
+import { downloadUrl } from "@/lib/urls";
 import type { Paste } from "@/lib/types";
 
 // The view page's content. A Server Component with one client child, which attaches
@@ -109,12 +109,16 @@ export function PasteView({
             {formatCount(paste.lineCount)} lines, {formatBytes(paste.byteSize)}
           </span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {/* Copy reads the DOM, not an endpoint. The line numbers are a CSS counter
+                written with `::before`, so `innerText` leaves them out — which is why there
+                is no cross-origin fetch here and, in turn, no inline raw endpoint to need a
+                second domain. `body-tools.tsx` has the detail. */}
+            <CopyLink />
+            <CopyBody targetId={BODY_ID} />
             <Button asChild size="sm" variant="outline">
-              {/* The raw endpoint, not the DOM: numbers rendered as text would be
-                  captured by a copy, and the raw bytes are the canonical content. */}
-              <a href={rawUrl(paste.id)}>Raw</a>
-            </Button>
-            <Button asChild size="sm" variant="outline">
+              {/* The bytes, as an attachment. `Content-Disposition: attachment` is what
+                  keeps them from being rendered as a page — the property that replaced
+                  §6.5's separate registrable domain. */}
               <a href={downloadUrl(paste.id)}>Download</a>
             </Button>
             {/* A plain form posting to a ROUTE, referenced by URL rather than imported.

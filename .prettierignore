@@ -1,0 +1,4 @@
+# A design hook's local cache. Git-excluded rather than ignored, so it never reaches a
+# commit — but `prettier --check .` reads the working tree, so without this the format
+# gate fails on a generated file for anyone with the hook installed.
+.impeccable/

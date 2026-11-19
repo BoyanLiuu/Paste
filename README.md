@@ -22,9 +22,11 @@ occupies. Port 3000 answering does not mean it answered as this app.
 compiled secret rules). None are committed, so a fresh clone needs the one command rather
 than a documented sequence.
 
-Run `pnpm dev:raw` alongside it to serve `/raw` and `/dl` from a second origin on 3026,
-which is how the cross-origin behaviour in ARCHITECTURE §6.5 gets exercised locally
-instead of on deploy day.
+One origin, one port. An inline `/raw/:id` used to need a second one — bytes a browser
+renders are a content-type mistake away from being a page, and a page on the app's origin
+runs with the reader's session, so ARCHITECTURE §6.5 required a separate registrable domain
+to hold it. `/dl/:id` sends the same bytes as an attachment instead: the browser saves
+rather than renders, so there is no origin for a script to run in and nothing to isolate.
 
 ### The database
 

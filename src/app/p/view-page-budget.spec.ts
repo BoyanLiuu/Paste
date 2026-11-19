@@ -33,7 +33,7 @@ import {
 
 /** The budget. One, and the module that spends it. */
 const BUDGET = 1;
-const EXPECTED = "src/components/range-select-mount.tsx";
+const EXPECTED = "src/components/body-tools.tsx";
 
 describe("the view page's client-JavaScript budget", () => {
   const graph = moduleGraph(VIEW_ROUTE_ENTRIES);

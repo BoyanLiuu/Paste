@@ -1,12 +1,20 @@
-// The raw response, shared by /raw/:id and /dl/:id.
+// The byte response behind /dl/:id.
 //
-// Every header here is load-bearing, and this endpoint is the one place in the product
-// where getting a header wrong is an exploit rather than a cosmetic defect (§6.5).
+// Every header here is load-bearing, and this is the one place in the product where getting
+// a header wrong is an exploit rather than a cosmetic defect (§6.5).
 //
-// TODO(M13): move these routes to their own registrable domain. `nosniff` plus a
-// correct content type is already enough in a correct browser — the separate origin is
-// the defence for when content-type handling fails, and the blast radius of that is
-// every session on the app. See src/lib/urls.ts.
+// `Content-Disposition: attachment` IS THE SECURITY PROPERTY, not a convenience. It tells
+// the browser to save these bytes rather than render them, so a paste whose body is a
+// complete HTML document has no origin to execute in. §6.5 originally reached the same
+// place differently — an inline /raw/:id on its own registrable domain, so that a
+// content-type failure would execute somewhere without the reader's session. Removing the
+// inline endpoint removed the need for the second domain: see src/lib/urls.ts.
+//
+// `nosniff`, the exact content type and `CSP: sandbox` all stay. They were the primary
+// defence when bytes were served inline and they are free depth now.
+//
+// `kind` still carries "inline", used by the 404 and 410 responses below: a lapsed paste
+// should show its receipt in the browser, not download a file called 410.txt.
 
 import { noCache, rawCacheControl } from "@/lib/http/cache";
 import { livenessOf, tombstoneFor } from "@/lib/expiry/tombstone";

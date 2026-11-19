@@ -15,8 +15,6 @@
     "format:check": "prettier --check .",
     "fixtures:render": "tsx scripts/render-fixtures.mts",
     "test:tz": "pnpm db:generate && TZ=Pacific/Kiritimati pnpm fixtures:render && pnpm secrets:compile && TZ=Pacific/Kiritimati vitest run",
-    "dev:raw": "next dev -p 3026",
-    "start:raw": "next start -p 3026",
     "secrets:compile": "tsx scripts/compile-secret-rules.mts",
     "secrets:vendor": "tsx scripts/vendor-gitleaks.mts",
     "db:generate": "prisma generate",

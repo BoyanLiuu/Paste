@@ -120,28 +120,37 @@ test.describe("a hostile body", () => {
     });
   }
 
-  test("the raw origin serves bytes as text, not as a document", async ({
+  test("the download endpoint saves bytes rather than rendering them", async ({
     request,
   }) => {
     const body = BODIES["a whole html document"];
     const { id } = await seed({ body, language: "html" });
 
-    const raw = await request.get(`/raw/${id}`);
-    expect(raw.status()).toBe(200);
+    const download = await request.get(`/dl/${id}`);
+    expect(download.status()).toBe(200);
+    const headers = download.headers();
 
-    // `text/plain`, EXACTLY. `text/html` here would make every paste a stored page on this
-    // origin — and `charset` matters too: without it a browser may sniff UTF-16 from a
-    // crafted prefix and reinterpret the whole body.
-    expect(raw.headers()["content-type"]).toBe("text/plain; charset=utf-8");
-    // `nosniff` is the belt: it stops a browser overriding the type above on content.
-    expect(raw.headers()["x-content-type-options"]).toBe("nosniff");
-    // And a sandbox policy, so even if something above were wrong the document that
+    // `attachment` IS THE DEFENCE, and this is the assertion that says so. These bytes are
+    // a complete HTML document with a script in it — exactly what someone would paste —
+    // and the disposition is what makes the browser save them instead of rendering them.
+    // There is then no origin for the script to run in, which is what replaced §6.5's
+    // separate registrable domain. If this header ever weakens to `inline`, every paste on
+    // the service becomes a stored page on the app's own origin.
+    expect(headers["content-disposition"]).toContain("attachment");
+
+    // `text/plain`, EXACTLY, as depth. `text/html` here would matter again the moment
+    // anything downstream ignored the disposition — and `charset` matters too: without it a
+    // browser may sniff UTF-16 from a crafted prefix and reinterpret the whole body.
+    expect(headers["content-type"]).toBe("text/plain; charset=utf-8");
+    // `nosniff` stops a browser overriding the type above on content.
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+    // And a sandbox policy, so even if everything above were wrong the document that
     // resulted could not run scripts or carry an origin.
-    expect(raw.headers()["content-security-policy"]).toContain("sandbox");
+    expect(headers["content-security-policy"]).toContain("sandbox");
 
     // Byte-for-byte, because that is the contract and because an escape applied here would
-    // corrupt what a reader pipes into a file.
-    expect(await raw.text()).toBe(body);
+    // corrupt what the reader opens in an editor.
+    expect(await download.text()).toBe(body);
   });
 
   test("a hostile title does not escape the page it titles", async ({
