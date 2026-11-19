@@ -78,7 +78,10 @@ export interface Paste {
   state: PasteState;
   removedBy: RemovedBy | null;
   forkedFrom: string | null;
-  createdVia: "web" | "cli" | "api";
+  /** How it arrived. `"cli"` was a third option until the command-line client was
+   *  dropped; the form sends JSON and anything else sends a raw body, which is the only
+   *  distinction left that is observable rather than self-reported. */
+  createdVia: "web" | "api";
   views: number;
   byteSize: number;
   lineCount: number;

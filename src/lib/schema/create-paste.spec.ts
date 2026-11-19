@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { DEFAULT_RETENTION } from "@/lib/expiry/retention";
-import { MAX_BYTES_WEB } from "@/lib/render/thresholds";
+import { formatBytes } from "@/lib/format";
+import { MAX_BYTES } from "@/lib/render/thresholds";
 import { createPasteSchema, TITLE_MAX } from "@/lib/schema/create-paste";
 
 // One schema validates the form and POST /api/pastes, so these assertions cover both
@@ -69,13 +70,19 @@ describe("createPasteSchema", () => {
   });
 
   it("refuses a body over the cap and names its real size", () => {
-    const over = "a".repeat(Math.round(MAX_BYTES_WEB * 1.1));
+    const over = "a".repeat(Math.round(MAX_BYTES * 1.1));
     const message = fieldErrors({ ...valid, body: over }).body?.[0] ?? "";
+
+    // BOTH FIGURES DERIVED, neither written down. This asserted `/11\.0 MB/` — the old
+    // 10 MB ceiling times 1.1 — and broke the moment the limit moved to 25 MB, reporting
+    // a failure against a message that was perfectly correct. The same rot as the
+    // hardcoded "11 MB of log" sample label, in the test that was supposed to guard it.
+    expect(message).toContain(formatBytes(over.length));
+    expect(message).toContain(formatBytes(MAX_BYTES));
     // "Too large" leaves the user guessing how much to cut.
-    expect(message).toMatch(/11\.0 MB/);
     expect(message).toMatch(/file, not a snippet/);
     // Catches a message that states the size and the limit as the same number: at
-    // cap+1KB both round to "10.0 MB" and the refusal reads like a bug. An earlier
+    // cap+1KB both round to the same figure and the refusal reads like a bug. An earlier
     // version of this test asserted that broken output.
     const figures = message.match(/[\d.]+ MB/g) ?? [];
     expect(figures).toHaveLength(2);
@@ -83,10 +90,10 @@ describe("createPasteSchema", () => {
   });
 
   // Catches the bug a character count would hide: UTF-8 spends up to four bytes on a
-  // code point, so ~2.6M emoji are over a 10 MB cap while being well under 10M chars.
+  // code point, so a quarter as many emoji as the byte cap are already over it.
   it("measures the cap in bytes, not characters", () => {
-    const fourBytesEach = "😀".repeat(Math.ceil(MAX_BYTES_WEB / 4) + 1);
-    expect(fourBytesEach.length).toBeLessThan(MAX_BYTES_WEB);
+    const fourBytesEach = "😀".repeat(Math.ceil(MAX_BYTES / 4) + 1);
+    expect(fourBytesEach.length).toBeLessThan(MAX_BYTES);
     expect(fieldErrors({ ...valid, body: fourBytesEach }).body?.[0]).toMatch(
       /file, not a snippet/,
     );

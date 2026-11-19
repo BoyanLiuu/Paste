@@ -43,7 +43,7 @@ export interface CreateArgs {
   lineNumbers: boolean;
   retention: RetentionCode;
   neverReason?: string;
-  createdVia: "web" | "cli" | "api";
+  createdVia: "web" | "api";
   /** sha256(ip + daily salt), never the address itself (§6.1). */
   createdIpHash?: string;
   /**

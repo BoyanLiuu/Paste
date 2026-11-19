@@ -236,7 +236,8 @@ const SOURCE_LABEL: Record<Paste["languageSource"], string> = {
 
 const VIA_LABEL: Record<Paste["createdVia"], string> = {
   web: "the web form",
-  cli: "the command line",
+  // No `cli` entry: the command-line client was dropped, and `Record` over the union means
+  // a stale key here would be a type error rather than dead code nobody notices.
   api: "the API",
 };
 

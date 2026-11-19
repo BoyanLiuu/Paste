@@ -50,7 +50,7 @@ export interface CreatePasteInput {
   filename?: string;
   /** Which caller: the form, the CLI or a direct API client. Recorded on the paste and
    *  in the audit row, and it decides the size ceiling (§4 stage 3). */
-  createdVia?: "web" | "cli" | "api";
+  createdVia?: "web" | "api";
   /** sha256(ip + daily salt), never the address itself (§6.1). */
   createdIpHash?: string;
   /** A justification for tier-2/3 findings the creator chose to save past. Tier 1 is not

@@ -74,15 +74,26 @@ describe.skipIf(reason !== null)(
       await withTestOwner(async (owner) => {
         await withSecret(async () => {
           const [id] = await seedPastes(owner.userId, [
-            { language: "python", body: "def f():\n    return 1\n" },
+            {
+              language: "python",
+              body: "def f():\n    return 1\n",
+              // Ten years back, so it sorts ahead of every other fixture in the suite.
+              minutesAgo: 10 * 365 * 24 * 60,
+            },
           ]);
 
-          // Asserted on THIS paste, never on the global counters.
+          // ONE CALL, and this paste is first in the batch because it is the oldest.
           //
-          // The endpoint is global by design — it backfills whatever is missing, which is
-          // what a cron job should do — so its `rendered` count includes rows other test
-          // files created moments earlier. Asserting on it made this test pass or fail
-          // depending on which files vitest happened to schedule alongside it.
+          // The endpoint is global and its batch is bounded at 25, ordered oldest-first,
+          // so a single call is not guaranteed to reach an arbitrary row: with 25 older
+          // candidates left by other spec files it reports "25 rendered" and this one is
+          // untouched. Every `seedPastes` fixture in the suite is a backfill candidate,
+          // which is why there are always plenty.
+          //
+          // Looping until the row appears was the first fix and was worse: ten calls
+          // render up to 250 leftover revisions, each a real Shiki render, so the test
+          // became a load generator and timed out. Dating the fixture far enough back
+          // puts it at the head of the ordering instead — deterministic, and one call.
           await POST(request(`Bearer ${SECRET}`));
 
           const render = await prisma.render.findFirst({

@@ -105,6 +105,14 @@ already gone wrong here — read it before assuming a surprising thing is a bug.
 - pnpm build scripts are allowlisted in `pnpm-workspace.yaml` under `allowBuilds`. The key
   has moved twice across pnpm versions; a missing entry breaks the deploy, not the install.
 - A test must name the bug it catches, in a comment, or it should not exist.
+- **The 15-client connection limit is shared with every app in the Supabase project.**
+  Another project's running `pnpm dev` can exhaust it, and this suite then fails with
+  20-second timeouts and no connection error to point at. Check for stray `next-server`
+  processes before blaming a diff.
+- **A bounded global job cannot be assumed to reach any particular row.** `/api/renders`
+  takes 25 oldest-first, and every `seedPastes` fixture is a candidate — so a test needing
+  its own row processed must date it far enough back to sort first, not loop until it
+  appears (that renders hundreds of leftovers and times out).
 - **Test files run one at a time** (`fileParallelism: false`). The sweeper is a global
   mutating job, so it raced every other file that seeds a past-due paste. Re-enabling
   parallelism brings back a one-in-five flake. The suite takes ~38 s; that is the price.

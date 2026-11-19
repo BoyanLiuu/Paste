@@ -6,7 +6,36 @@
 // assembled at runtime from parts — never stored whole — which is the rule
 // no-committed-secrets.spec.ts enforces.
 
+import { formatBytes } from "@/lib/format";
+import { MAX_BYTES } from "@/lib/render/thresholds";
+
 import { PAY_LOG, PY, SAMPLE_PASSWORD } from "@/lib/fixtures/bodies";
+
+/**
+ * A body deliberately over the cap, for the refusal the form has to show.
+ *
+ * Built rather than stored: a 27 MB string literal in source is absurd, and it would also
+ * have to change every time the ceiling does. Constructed on demand, in the browser —
+ * shipping it over the wire was a real bug once, 20.8 MB on a page load to demonstrate a
+ * limit.
+ */
+const OVERSIZE_LINE =
+  "2026-11-12T07:41:03.188Z INFO payments-api request status=200\n";
+
+/** How far past the cap the sample goes. One place, so the label and the body agree. */
+const OVERSIZE_FACTOR = 1.1;
+
+export function buildOversizedBody(): string {
+  return OVERSIZE_LINE.repeat(
+    Math.ceil((MAX_BYTES * OVERSIZE_FACTOR) / OVERSIZE_LINE.length),
+  );
+}
+
+/** The real byte length of what `buildOversizedBody` produces, without building it. */
+function oversizedBodyBytes(): number {
+  const lines = Math.ceil((MAX_BYTES * OVERSIZE_FACTOR) / OVERSIZE_LINE.length);
+  return lines * OVERSIZE_LINE.length;
+}
 
 /** A sample AWS key id. AWS publishes EXAMPLE-suffixed keys for documentation and
  *  scanners exclude them, but it is still assembled rather than written whole so the
@@ -57,7 +86,16 @@ export const SAMPLE_BODIES: Readonly<Record<string, Sample>> = {
       `LOG_LEVEL=debug\n`,
   },
   huge: {
-    label: "11 MB of log",
+    // DERIVED FROM THE BODY ITSELF, not written down and not recomputed.
+    //
+    // It said "11 MB of log", true against the old 10 MB ceiling and wrong the moment the
+    // limit moved to 25 MB — the same rot as the fixture dates when they were absolute.
+    //
+    // The first fix computed `formatBytes(MAX_BYTES * 1.1)` here while `create-form.tsx`
+    // separately built a body of `MAX_BYTES * 1.1`, which replaced one duplication with
+    // another: two places deciding how far over the cap to go, free to disagree and make
+    // the label lie again. The builder lives here now and the label measures its output.
+    label: `${formatBytes(oversizedBodyBytes())} of log`,
     title: "",
     oversized: true,
   },

@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { RETENTION, RETENTION_CODES } from "@/lib/expiry/retention";
 import { formatBytes } from "@/lib/format";
-import { MAX_BYTES_WEB } from "@/lib/render/thresholds";
+import { MAX_BYTES } from "@/lib/render/thresholds";
 
 /** "auto" means run the detection ladder; anything else is an explicit choice that
  *  always wins and is never second-guessed (§5 rung 1). */
@@ -35,13 +35,13 @@ export const createPasteSchema = z
   })
   .superRefine((value, ctx) => {
     const bytes = byteLength(value.body);
-    if (bytes > MAX_BYTES_WEB) {
+    if (bytes > MAX_BYTES) {
       ctx.addIssue({
         code: "custom",
         path: ["body"],
         // Name the real size: "too large" leaves the user guessing how much to cut.
         message: `That is ${formatBytes(bytes)}. The limit is ${formatBytes(
-          MAX_BYTES_WEB,
+          MAX_BYTES,
         )} — this is a file, not a snippet.`,
       });
     }

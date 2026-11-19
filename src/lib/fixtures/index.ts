@@ -172,7 +172,9 @@ export const DESIGNED_PASTES: readonly Paste[] = [
     retention: "1d",
     createdAt: minutesAgo(195),
     state: "live",
-    createdVia: "cli",
+    // `"api"`, not `"cli"`: a 20 MB log still arrives by posting a raw body, there is
+    // just no dedicated client doing it.
+    createdVia: "api",
     views: 6,
     body: KUBE_LOG,
     bodyShown: 500,

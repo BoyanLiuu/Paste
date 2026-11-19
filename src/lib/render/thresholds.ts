@@ -21,9 +21,24 @@ export const HIGHLIGHT_LINES = 2_000;
 export const TRUNCATE_BYTES = 2 * 1024 * 1024;
 export const TRUNCATE_LINES = 500;
 
-/** Hard caps. Over these is a file, not a snippet — 413, with a pointer at project 03. */
-export const MAX_BYTES_WEB = 10 * 1024 * 1024;
-export const MAX_BYTES_CLI = 25 * 1024 * 1024;
+/**
+ * The hard cap. Over it is a file, not a snippet — 413, with a pointer at project 03.
+ *
+ * The largest paste, for every caller.
+ *
+ * ONE CEILING. There were two — 10 MB from the browser form and 25 MB for the CLI — and
+ * the split only existed because the CLI was how something that big got sent. With no CLI
+ * there is no second caller to have a second limit for, and two numbers would mean the
+ * same POST endpoint accepting or refusing the same body depending on a user-agent string.
+ *
+ * 25 MB rather than 10, because the designed truncated case is a 214,880-line kubectl log
+ * of 20.1 MB (fixture `Kp2sM7aJ`). Keeping 10 would have made that screen describe
+ * something nobody could create.
+ *
+ * The cost is real and accepted: a 25 MB form submission is a slow, memory-heavy request
+ * from a browser, and `getRaw` buffers the whole body to serve it back (Appendix G).
+ */
+export const MAX_BYTES = 25 * 1024 * 1024;
 
 export type RenderMode = "highlight" | "plain" | "truncated";
 

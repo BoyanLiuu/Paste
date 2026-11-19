@@ -30,7 +30,8 @@ import {
   RETENTION_CODES,
 } from "@/lib/expiry/retention";
 import { formatBytes } from "@/lib/format";
-import { MAX_BYTES_WEB } from "@/lib/render/thresholds";
+import { MAX_BYTES } from "@/lib/render/thresholds";
+import { buildOversizedBody, SAMPLE_BODIES } from "@/lib/samples";
 import {
   AUTO_LANGUAGE,
   byteLength,
@@ -74,12 +75,6 @@ interface Props {
  *  "10.0 MB" and the refusal reads "That is 10.0 MB. The limit is 10.0 MB", which
  *  looks like a bug rather than a limit. The prototype labels this sample "11 MB of
  *  log" for the same reason. */
-function buildOversizedBody(): string {
-  const line =
-    "2026-11-12T07:41:03.188Z INFO payments-api request status=200\n";
-  return line.repeat(Math.ceil((MAX_BYTES_WEB * 1.1) / line.length));
-}
-
 function measure(text: string): { bytes: number; lines: number } {
   return {
     bytes: byteLength(text),
@@ -289,8 +284,8 @@ export function CreateForm({
             {...form.register("body")}
           />
           <p className="text-muted-foreground text-xs">
-            Up to {formatBytes(MAX_BYTES_WEB)}. Logs, configs and stack traces
-            are what most people paste.
+            Up to {formatBytes(MAX_BYTES)}. Logs, configs and stack traces are
+            what most people paste.
           </p>
           <FieldError message={errors.body?.message} />
         </div>
@@ -406,13 +401,15 @@ export function CreateForm({
   );
 }
 
-const SAMPLES = [
-  { id: "python", label: "clean Python" },
-  { id: "log", label: "a log" },
-  { id: "aws", label: "an AWS key" },
-  { id: "password", label: "a password" },
-  { id: "huge", label: "11 MB of log" },
-] as const;
+// Derived from SAMPLE_BODIES rather than listed again.
+//
+// This was a second hardcoded list of the same five labels, and the duplication did what
+// duplication does: it still said "11 MB of log" after the size ceiling moved to 25 MB and
+// `samples.ts` had been corrected. One source, and the oversize label now comes from the
+// ceiling itself so neither copy can go stale.
+const SAMPLES = (["python", "log", "aws", "password", "huge"] as const).map(
+  (id) => ({ id, label: SAMPLE_BODIES[id].label }),
+);
 
 const BADGE_COPY: Record<string, string> = {
   idle: "",

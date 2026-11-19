@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 import { flattenError } from "zod";
 
 import { decodeUtf8 } from "@/lib/normalise";
-import { MAX_BYTES_CLI, MAX_BYTES_WEB } from "@/lib/render/thresholds";
+import { MAX_BYTES } from "@/lib/render/thresholds";
 import { formatBytes } from "@/lib/format";
 import { createPasteSchema } from "@/lib/schema/create-paste";
 import { BlockedBySecretScan, NeedsOverride } from "@/lib/server/create-paste";
@@ -71,19 +71,22 @@ export async function POST(request: Request) {
   }
 
   // --- stage 3: gate the size, on the header AND on the real byte count
-  const ceiling = via === "web" ? MAX_BYTES_WEB : MAX_BYTES_CLI;
+  //
+  // One ceiling for every caller. It used to be 10 MB for the form and 25 MB for the CLI,
+  // selected by a user-agent string — so the same endpoint accepted or refused the same
+  // body depending on a header the caller writes, which is a limit anyone can raise.
   const claimed = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(claimed) && claimed > ceiling) {
+  if (Number.isFinite(claimed) && claimed > MAX_BYTES) {
     // Refuse before reading the stream: the point of checking the header is to avoid
     // buffering 200 MB only to reject it.
-    return tooLarge(claimed, ceiling, rate.remaining);
+    return tooLarge(claimed, MAX_BYTES, rate.remaining);
   }
 
   const raw = new Uint8Array(await request.arrayBuffer());
-  if (raw.byteLength > ceiling) {
+  if (raw.byteLength > MAX_BYTES) {
     // The header is a claim, so the real count is checked too. A client that understates
     // Content-Length gets refused here instead of slipping past stage 3.
-    return tooLarge(raw.byteLength, ceiling, rate.remaining);
+    return tooLarge(raw.byteLength, MAX_BYTES, rate.remaining);
   }
 
   const input = await readInput(request, raw);
@@ -171,14 +174,20 @@ export async function POST(request: Request) {
   }
 }
 
-/** Which caller this is, which decides the size ceiling and is stored on the paste. */
-function createdVia(request: Request): "web" | "cli" | "api" {
+/**
+ * Which caller this is. Recorded on the paste and shown as "Made with".
+ *
+ * It no longer decides the size ceiling, and it no longer sniffs the user agent for a
+ * `paste-cli` string. Both were in service of a command-line client that is not being
+ * built, and the sniff was the worse of the two: a self-reported header deciding a limit
+ * is a limit anyone can raise by claiming to be something else.
+ *
+ * The distinction that remains is honest and observable — the form sends JSON, anything
+ * else sends a raw body — and it is only used for display.
+ */
+function createdVia(request: Request): "web" | "api" {
   const type = request.headers.get("content-type") ?? "";
-  if (type.includes("application/json")) return "web";
-  // A raw body means something that is not the form. The CLI identifies itself; anything
-  // else gets the same ceiling but is recorded honestly as `api`.
-  const agent = request.headers.get("user-agent") ?? "";
-  return agent.toLowerCase().includes("paste-cli") ? "cli" : "api";
+  return type.includes("application/json") ? "web" : "api";
 }
 
 function remainingHeader(remaining: number): Record<string, string> {
