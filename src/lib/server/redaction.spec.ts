@@ -26,7 +26,11 @@ import {
 } from "@/lib/server/create-test-harness";
 import { decideRequest, requestRemoval } from "@/lib/server/mutations";
 import { PASTE_INCLUDE, toPaste } from "@/lib/server/map";
-import { getPaste, getRaw, getRenderForPaste } from "@/lib/server/paste-service";
+import {
+  getPaste,
+  getRaw,
+  getRenderForPaste,
+} from "@/lib/server/paste-service";
 import { prisma } from "@/lib/server/prisma";
 import { scan, worstTier } from "@/lib/secrets/scan";
 import type { Viewer } from "@/lib/types";
@@ -118,9 +122,7 @@ describe.skipIf(reason !== null)(
 
         // THE RENDER IS GONE. Rendered HTML is a copy of the body — a redacted paste
         // still holding one has been hidden, not redacted.
-        expect(
-          await prisma.render.count({ where: { revisionId } }),
-        ).toBe(0);
+        expect(await prisma.render.count({ where: { revisionId } })).toBe(0);
 
         // THE HASH SURVIVES, with the size and line count. The trigger would reject
         // changing them, and they are what lets a tombstone prove what was there.
@@ -218,9 +220,7 @@ describe.skipIf(reason !== null)(
         expect(revision.bodyText).toBeNull();
         expect(revision.purgedAt).not.toBeNull();
         // No marker revision: a delete is not a replacement.
-        expect(
-          await prisma.revision.count({ where: { pasteId } }),
-        ).toBe(1);
+        expect(await prisma.revision.count({ where: { pasteId } })).toBe(1);
         expect(await prisma.render.count({ where: { revisionId } })).toBe(0);
       });
     });

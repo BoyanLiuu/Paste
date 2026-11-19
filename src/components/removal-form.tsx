@@ -139,13 +139,7 @@ export function RemovalForm({ pasteId }: { pasteId: string }) {
  * It names the request number, because that number is what the moderator's decision and
  * the audit trail both cite — and it is the only thing the requester can refer to later.
  */
-function Sent({
-  pasteId,
-  requestId,
-}: {
-  pasteId: string;
-  requestId: number;
-}) {
+function Sent({ pasteId, requestId }: { pasteId: string; requestId: number }) {
   return (
     <div className="border-rule bg-card flex max-w-xl flex-col gap-3 rounded-lg border p-5">
       <h2 className="text-lg">Request #{requestId} is open</h2>

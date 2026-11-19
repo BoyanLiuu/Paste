@@ -22,7 +22,8 @@
     "db:generate": "prisma generate",
     "db:deploy": "prisma migrate deploy",
     "db:status": "prisma migrate status",
-    "db:seed": "NODE_OPTIONS=--conditions=react-server tsx prisma/seed.mts"
+    "db:seed": "NODE_OPTIONS=--conditions=react-server tsx prisma/seed.mts",
+    "measure:thresholds": "NODE_OPTIONS=--conditions=react-server tsx scripts/measure-thresholds.mts"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.10.2",
@@ -51,6 +52,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.65.1",
     "@tailwindcss/turbopack": "4.3.3",
     "@testing-library/jest-dom": "^7.0.1",

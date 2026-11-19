@@ -269,6 +269,8 @@ export async function keysToDelete(
   // A delete purges every revision; a redaction purges only the head. Filtered here rather
   // than in the query, because the head is "the highest revision_no that still has bytes"
   // and that is an ordering question, not a WHERE clause.
-  const keys = revisions.map((r) => r.storageKey).filter((k): k is string => k !== null);
+  const keys = revisions
+    .map((r) => r.storageKey)
+    .filter((k): k is string => k !== null);
   return action === "delete" ? keys : keys.slice(0, 1);
 }

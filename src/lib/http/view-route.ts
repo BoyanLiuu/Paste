@@ -236,10 +236,7 @@ async function withStatus(
 ): Promise<NextResponse> {
   const inner = new Headers(headers);
   inner.set(INTERNAL, TOKEN);
-  inner.set(
-    HOPS,
-    String(Number(request.headers.get(HOPS) ?? "0") + 1),
-  );
+  inner.set(HOPS, String(Number(request.headers.get(HOPS) ?? "0") + 1));
 
   // Where this fetch is allowed to go, pinned rather than inferred.
   //

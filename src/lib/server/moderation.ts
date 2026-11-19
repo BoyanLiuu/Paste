@@ -53,9 +53,7 @@ export async function openRequests(): Promise<RemovalRequest[]> {
 }
 
 /** One request, for the decision screen. */
-export async function requestById(
-  id: number,
-): Promise<RemovalRequest | null> {
+export async function requestById(id: number): Promise<RemovalRequest | null> {
   const since = new Date(Date.now() - VIEW_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
   const row = await prisma.deletionRequest.findUnique({
@@ -132,7 +130,8 @@ async function auditFor(
       // Null actor means the system did it. The designed screen distinguishes a human act
       // from an instrument's, which is what `kind` is for.
       actor: entry.actor ?? "the sweeper",
-      kind: entry.actor === null ? ("instrument" as const) : ("person" as const),
+      kind:
+        entry.actor === null ? ("instrument" as const) : ("person" as const),
       action: entry.action,
       detail: detailOf(entry.action, entry.payload),
     }));

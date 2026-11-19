@@ -53,8 +53,8 @@ async function Queue() {
           {requests.length === 0
             ? "Nothing open."
             : `${formatCount(requests.length)} open, oldest first.`}{" "}
-          The bias is toward keeping pastes: redaction removes the secret and leaves
-          the link working.
+          The bias is toward keeping pastes: redaction removes the secret and
+          leaves the link working.
         </p>
       </div>
 
@@ -160,8 +160,8 @@ function EmptyQueue() {
     <div className="border-rule text-ink-2 rounded-lg border border-dashed p-6 text-sm">
       <p>
         No open requests. Retention is the usual deletion mechanism —{" "}
-        {RETENTION["30d"].label} by default — so most pastes leave without anyone
-        deciding anything.
+        {RETENTION["30d"].label} by default — so most pastes leave without
+        anyone deciding anything.
       </p>
     </div>
   );
@@ -171,6 +171,7 @@ function Loading() {
   return (
     <div
       className="border-rule h-64 animate-pulse rounded-lg border"
+      role="status"
       aria-label="Loading the queue"
     />
   );

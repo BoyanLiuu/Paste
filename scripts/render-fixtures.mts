@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { DESIGNED_PASTES } from "@/lib/fixtures/index";
 import { grammarFor, highlight, THEME_NAME } from "@/lib/render/highlight";
 import { renderKey, revisionKey } from "@/lib/render/keys";
-import { renderMode } from "@/lib/render/thresholds";
+import { renderMode, renderWorthStoring } from "@/lib/render/thresholds";
 import { allTokenClasses, tokenStylesheet } from "@/lib/render/tokens";
 
 const OUT = join(
@@ -46,6 +46,19 @@ async function main() {
         `No grammar for fixture ${paste.id} (language "${paste.language}").`,
       );
     }
+    // THE SAME MARKUP CAP THE APP ENFORCES. A fixture is authored rather than
+    // attacker-supplied, so this cannot be a silent skip: a corpus entry whose markup the
+    // real writers would refuse means the designed screen shows highlighting that no
+    // equivalent paste could ever get — a seam inconsistency that would read as a styling
+    // bug months later. Fail loudly and shrink the fixture.
+    if (!renderWorthStoring(html)) {
+      throw new Error(
+        `Fixture ${paste.id} renders to ${html.length} bytes of markup, past ` +
+          `MAX_RENDER_BYTES. The app would store no render for it, so the fixture ` +
+          `would be highlighted where a real paste of the same shape is not.`,
+      );
+    }
+
     entries.push(
       `  ${JSON.stringify(renderKey(revisionKey(paste.id, 1), THEME_NAME))}: ${JSON.stringify(html)},`,
     );

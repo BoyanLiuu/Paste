@@ -55,41 +55,58 @@ transaction that is always rolled back. Without `.env` they skip and print why.
 
 ## Measured thresholds
 
-The numbers behind `src/lib/render/thresholds.ts`. Taken at M5 on an Apple-silicon
-laptop with `pnpm tsx`, Shiki 4.6, the CSS-variables theme and the style-to-class
-transformer. Re-measure on real hardware before trusting them elsewhere — the
-architecture's own instruction, and the reason these are written down rather than
-asserted.
+The numbers behind `src/lib/render/thresholds.ts`. **Reproduce them with
+`pnpm measure:thresholds`** — the script is committed, and every figure below is its
+output on an Apple-silicon laptop with Shiki 4.6, the CSS-variables theme and the
+style-to-class transformer.
+
+The script exists because the M5 numbers did not survive contact with a re-measurement.
+They recorded an output without its input, so there was no way to tell a regression from a
+different test body — and they were 2–3× off. **A measurement you cannot re-run is a claim,
+not evidence.**
 
 ### Shiki, highlighting at save time
 
-| lines   | language   | wall clock | HTML   | bytes/line |
-| ------- | ---------- | ---------- | ------ | ---------- |
-| 200     | TypeScript | 92 ms      | 70 KB  | 353        |
-| 2 000   | TypeScript | 96 ms      | 688 KB | 344        |
-| 20 000  | TypeScript | 826 ms     | 6.9 MB | 343        |
-| 100 000 | TypeScript | 3 689 ms   | 34 MB  | 343        |
-| 200     | plain text | 1 ms       | 12 KB  | 61         |
-| 2 000   | plain text | 2 ms       | 120 KB | 60         |
-| 20 000  | plain text | 19 ms      | 1.2 MB | 60         |
-| 100 000 | plain text | 92 ms      | 6.0 MB | 60         |
+Cold start, the first highlight in a process: **70 ms**. That is WASM and grammar warm-up,
+paid once. A per-request highlighter would pay it on every view.
 
-**Three things these numbers settle.**
+| lines   | language   | wall clock | HTML    | bytes/line |
+| ------- | ---------- | ---------- | ------- | ---------- |
+| 200     | TypeScript | 34 ms      | 118 KB  | 604        |
+| 2 000   | TypeScript | 309 ms     | 1.2 MB  | 604        |
+| 20 000  | TypeScript | 2 747 ms   | 11.5 MB | 604        |
+| 100 000 | TypeScript | 13 415 ms  | 57.6 MB | 604        |
+| 200     | plain text | 0 ms       | 21 KB   | 105        |
+| 2 000   | plain text | 8 ms       | 205 KB  | 105        |
+| 20 000  | plain text | 35 ms      | 2.0 MB  | 105        |
+| 100 000 | plain text | 190 ms     | 10.0 MB | 105        |
 
-_The 2 000-line cutoff holds, but not for the reason the design gave._ Wall clock at
-2 000 lines is 96 ms, which would be perfectly affordable inside a save request. What
-is not affordable is **688 KB of markup** — that is the browser's problem, and it
-confirms ARCHITECTURE §6.2's claim that the DOM rather than the CPU sets the limit. At
-20 000 lines it is 6.9 MB and 826 ms, past both.
+The TypeScript rows repeat one deliberately dense line — a generic, a string literal and a
+trailing comment. As a control, the largest TypeScript file in this repo measured as
+itself: **342 lines, 57 KB of markup, 171 bytes/line, 110 ms.**
 
-_Shiki has roughly 90 ms of fixed cost._ 200 lines and 2 000 lines take almost the same
-wall clock, so nearly all of it is WASM and grammar warm-up rather than per-line work.
-A per-request highlighter would pay that on every view; rendering once at save pays it
-once per revision. That is the §6.2 argument, measured.
+**What these numbers settled, and what they changed.**
 
-_Cost tracks grammar, not bytes._ TypeScript costs 343 bytes and plain text 60 bytes per
-line — a 5.7× spread on identical line counts. A byte-based cutoff would be wrong for
-one of them whichever value it took, which is why the threshold counts lines.
+_The DOM is the constraint, and a line count cannot express it._ This is the finding that
+changed the code. The same language, the same line count, measured 171 bytes/line as real
+code and 604 as dense code — a 3.5× spread, so 2 000 lines is anywhere between 348 KB and
+1.2 MB of HTML. §6.2 accepted 688 KB. No choice of line count is right for both ends of
+that range, because the quantity being bounded is not a function of the input the gate can
+see. So `MAX_RENDER_BYTES` caps the **markup**, checked after rendering by both writers,
+and the line and byte gates were demoted to what they honestly are: a cheap refusal to
+start work that would be discarded anyway.
+
+_Checking the output is affordable only because rendering already happens at save time._
+The cost of a refused render is one wasted highlight on a save that still succeeded, and
+the reader falls back to escaped text with a banner — a path that already existed for a
+missing render. On a read path this check would be impossible, which is the same argument
+§6.2 makes for rendering once.
+
+_Cost is superlinear past the cutoff._ 200 → 2 000 lines is 9× the work for 10× the lines;
+2 000 → 20 000 is 9× again; 20 000 → 100 000 is 4.9× for 5× the lines but 13.4 seconds in
+absolute terms. The 2 000-line rung is where highlighting stops being bookkeeping and
+becomes a visible pause on a save, which is why the gates stay where they are even though
+they are no longer the real limit.
 
 ### The scanner
 

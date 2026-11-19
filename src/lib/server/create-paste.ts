@@ -16,10 +16,7 @@
 
 import "server-only";
 
-import {
-  BlockedBySecretScan,
-  NeedsOverride,
-} from "@/lib/server/create-errors";
+import { BlockedBySecretScan, NeedsOverride } from "@/lib/server/create-errors";
 
 import { randomUUID } from "node:crypto";
 
@@ -29,7 +26,11 @@ import { expiresAt, purgeAfter } from "@/lib/expiry/retention";
 import { withFreshId } from "@/lib/ids";
 import { normalise } from "@/lib/normalise";
 import { highlight, THEME_NAME } from "@/lib/render/highlight";
-import { renderMode, storageFor } from "@/lib/render/thresholds";
+import {
+  renderMode,
+  renderWorthStoring,
+  storageFor,
+} from "@/lib/render/thresholds";
 import { PASTE_INCLUDE, toPaste } from "@/lib/server/map";
 import { prisma } from "@/lib/server/prisma";
 import { scan, worstTier } from "@/lib/secrets/scan";
@@ -208,12 +209,12 @@ export async function createPasteInDatabase(args: CreateArgs): Promise<Paste> {
         subjectId: id,
         actorId: args.ownerId,
         payload: {
-            via: args.createdVia,
-            language: detection.language,
-            languageSource: detection.source,
-            byteSize,
-            lineCount,
-            retention: args.retention,
+          via: args.createdVia,
+          language: detection.language,
+          languageSource: detection.source,
+          byteSize,
+          lineCount,
+          retention: args.retention,
           findings: result.findings.length,
           scanState: result.state,
         },
@@ -261,6 +262,18 @@ async function renderIfWorthwhile(
   try {
     const html = await highlight(body, language);
     if (html === null) return;
+
+    // THE OUTPUT CAP, measured at M12. A line count cannot bound markup — the same
+    // 2 000-line TypeScript body produces 348 KB or 1.2 MB depending on how dense its
+    // lines are — so the quantity §6.2 cares about is checked on itself, once it exists.
+    // Discarding the render here costs one wasted highlight on a save that still
+    // succeeded, and the reader gets the escaped-text path with its banner.
+    if (!renderWorthStoring(html)) {
+      console.info(
+        `render for paste ${pasteId} exceeded the markup budget; serving plain text`,
+      );
+      return;
+    }
 
     await prisma.render.create({
       data: { revisionId: head.id, theme: THEME_NAME, html },

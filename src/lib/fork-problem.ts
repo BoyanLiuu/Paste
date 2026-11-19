@@ -21,7 +21,8 @@ export const FORK_PROBLEMS: ForkProblem[] = [
 ];
 
 export function asForkProblem(value: unknown): ForkProblem | null {
-  return typeof value === "string" && FORK_PROBLEMS.includes(value as ForkProblem)
+  return typeof value === "string" &&
+    FORK_PROBLEMS.includes(value as ForkProblem)
     ? (value as ForkProblem)
     : null;
 }

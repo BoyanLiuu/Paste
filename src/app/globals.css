@@ -362,7 +362,39 @@
  * highlighting to one colour, which is exactly what an earlier guess at the variable
  * names did. */
 
+/* Reduced motion, across everything (Appendix E).
+ *
+ * The doctrine's closing promise is "every animation reduced to opacity-only or omitted
+ * under prefers-reduced-motion: reduce — one media query for the CSS ones". That media
+ * query did not exist: there was only the narrow `.paste-body .line` rule below, so the
+ * `animate-pulse` on five loading skeletons kept pulsing, and every `transition-*` utility
+ * on the shadcn primitives kept running. A pulsing placeholder is the canonical trigger for
+ * vestibular discomfort, and it was on the create page, the view page, the list, the
+ * moderation queue and the removal form.
+ *
+ * `!important` AND THE UNIVERSAL SELECTOR, both deliberate. Tailwind's `animate-*` and
+ * `transition-*` utilities are single-class rules, so any selector less specific than this
+ * loses to them — and the set of elements carrying one is every element a utility class can
+ * reach, which is all of them. The alternative is enumerating the utilities in use, which
+ * is a list that goes stale the first time someone adds a hover.
+ *
+ * Near-zero rather than `none`: an animation that never starts also never fires
+ * `animationend`, and Radix keeps a dialog mounted until its exit animation completes. At
+ * 0.01ms the exit finishes immediately and the component unmounts, which is the intended
+ * behaviour rather than a stuck overlay. */
 @media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* The line highlight, which is colour rather than layout and so is kept as an instant
+   * change rather than a collapsed transition. Explicit because `transition: none` says
+   * what is meant here more clearly than a 0.01ms duration does. */
   .paste-body .line {
     transition: none;
   }

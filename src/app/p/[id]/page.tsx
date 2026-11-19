@@ -115,9 +115,16 @@ async function Content({
 function Loading() {
   // ux-15. Deliberately plain: this page's job is to show text, and a shimmer that
   // outlives the content it replaces is worse than a blank box.
+  //
+  // `role="status"` IS REQUIRED, not decoration — the same fix is on every skeleton in this
+  // app. ARIA prohibits `aria-label` on an element with no role, so a bare `<div>` carrying
+  // one is a serious `aria-prohibited-attr` violation AND the label is ignored outright:
+  // the skeleton announced nothing. With the role it announces politely, which is what a
+  // loading placeholder is for. Found by `a11y.e2e.ts` on four screens at once.
   return (
     <div
       className="border-rule h-96 animate-pulse rounded-lg border"
+      role="status"
       aria-label="Loading the paste"
     />
   );

@@ -23,7 +23,7 @@
 import { NextResponse } from "next/server";
 
 import { highlight, THEME_NAME } from "@/lib/render/highlight";
-import { renderMode } from "@/lib/render/thresholds";
+import { renderMode, renderWorthStoring } from "@/lib/render/thresholds";
 import { prisma } from "@/lib/server/prisma";
 
 /** Revisions per invocation. Bounded so one run cannot hold a connection for minutes;
@@ -100,6 +100,15 @@ export async function POST(request: Request) {
       if (html === null) {
         // No grammar for that language. Not an error: `language` can come straight from
         // an API caller, and the escaped fallback is a real rendering path.
+        skipped += 1;
+        continue;
+      }
+
+      // THE OUTPUT CAP, the same check the create path makes and through the same
+      // function. A backfill that stored markup the create path would have refused would
+      // reintroduce the budget breach by the back door — and quietly, since nothing on
+      // the view page says which writer produced a render.
+      if (!renderWorthStoring(html)) {
         skipped += 1;
         continue;
       }

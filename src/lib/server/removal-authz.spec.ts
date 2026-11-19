@@ -49,9 +49,10 @@ describe("mayRequest", () => {
     // true. Someone selecting the wrong dropdown entry about their own paste should not be
     // refused on a technicality.
     for (const relationship of RELATIONSHIPS) {
-      expect(mayRequest({ isOwner: true, isModerator: false, relationship }).ok, relationship).toBe(
-        true,
-      );
+      expect(
+        mayRequest({ isOwner: true, isModerator: false, relationship }).ok,
+        relationship,
+      ).toBe(true);
     }
   });
 
@@ -86,7 +87,8 @@ describe("mayRequest", () => {
     expect(security.ok).toBe(false);
 
     expect(
-      mayRequest({ isOwner: false, isModerator: false, relationship: "other" }).ok,
+      mayRequest({ isOwner: false, isModerator: false, relationship: "other" })
+        .ok,
     ).toBe(false);
   });
 });

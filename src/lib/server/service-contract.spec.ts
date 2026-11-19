@@ -110,5 +110,4 @@ describe("mutations", () => {
   // The contract that mattered is the one still checked above: every mutation is `async`
   // and takes the viewer first. That is what let M7 and M11 change bodies without touching
   // a single call site.
-
 });

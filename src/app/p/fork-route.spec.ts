@@ -172,9 +172,7 @@ describe.skipIf(reason !== null)(
 
         // `gone` rather than `failed`: the distinction the whole product rests on is that a
         // missing paste and a broken server are different answers.
-        expect(await forkAndFollow("zzzzzzzz")).toBe(
-          "/p/zzzzzzzz?fork=gone",
-        );
+        expect(await forkAndFollow("zzzzzzzz")).toBe("/p/zzzzzzzz?fork=gone");
       });
     });
   },

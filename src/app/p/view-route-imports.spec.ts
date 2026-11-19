@@ -1,7 +1,3 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
-
 // The test ARCHITECTURE N11 and §6.2 both rest on.
 //
 // The view page is the hot path, it renders hostile content, and it must ship one
@@ -12,35 +8,14 @@ import { describe, expect, it } from "vitest";
 //
 // Written in M3 while it is trivially green. By M7 the import is one autocomplete away.
 
-const ROOT = resolve(import.meta.dirname, "../../..");
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 
-/**
- * Everything Next composes to serve /p/:id — the page AND every layout above it.
- *
- * THE LAYOUTS ARE THE POINT. This test walked the page alone for three milestones, and a
- * page does not import its layout: Next composes them. So `clerk init` putting
- * `ClerkProvider` in the root layout was completely invisible here, while the running
- * server showed `/p/:id` loading `clerk.browser.js` from a remote clerk.accounts.dev
- * origin — a third-party script on the one page that renders attacker-supplied text.
- * The test passed throughout.
- *
- * A guard that cannot see half of what it guards is worse than no guard, because it is
- * trusted. Any layout added between `src/app` and the route now joins this list
- * automatically.
- */
-const ENTRIES = [
-  "src/app/p/[id]/page.tsx",
-  ...["src/app/p/[id]", "src/app/p", "src/app"]
-    .map((dir) => `${dir}/layout.tsx`)
-    .filter((file) => {
-      try {
-        readFileSync(resolve(ROOT, file), "utf8");
-        return true;
-      } catch {
-        return false;
-      }
-    }),
-];
+import { moduleGraph, ROOT, VIEW_ROUTE_ENTRIES } from "@/app/p/module-graph";
+
+// The walker and the entry list moved to `./module-graph.ts` at M12, when the client-JS
+// budget needed the same graph. Its comment explains why the LAYOUTS are in that list.
 
 /** Modules a view-route file may not reach, transitively.
  *
@@ -78,70 +53,8 @@ const FORBIDDEN: {
   { specifier: "zod", why: "a validator on a page that validates nothing" },
 ];
 
-/** Resolves the relative and alias imports this project uses. Deliberately not a
- *  bundler: a 40-line walker that understands `@/` and relative paths covers every
- *  import in this codebase, and a bundler would make the test slow enough to skip. */
-function readImports(file: string): string[] {
-  const source = readFileSync(resolve(ROOT, file), "utf8");
-  return [
-    ...source.matchAll(/^\s*(?:import|export)[^'"]*from\s*["']([^"']+)["']/gm),
-  ]
-    .map((m) => m[1])
-    .concat(
-      [...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g)].map(
-        (m) => m[1],
-      ),
-    );
-}
-
-const EXTENSIONS = [".ts", ".tsx", "/index.ts", "/index.tsx"];
-
-function resolveLocal(specifier: string, fromFile: string): string | null {
-  let base: string;
-  if (specifier.startsWith("@/")) base = `src/${specifier.slice(2)}`;
-  else if (specifier.startsWith(".")) {
-    base = resolve(dirname(resolve(ROOT, fromFile)), specifier).slice(
-      ROOT.length + 1,
-    );
-  } else return null;
-
-  for (const extension of ["", ...EXTENSIONS]) {
-    try {
-      const candidate = `${base}${extension}`;
-      readFileSync(resolve(ROOT, candidate), "utf8");
-      return candidate;
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
-
-/** Every module the entries reach, and the shortest path to each. */
-function moduleGraph(entries: string[]): Map<string, string[]> {
-  const seen = new Map<string, string[]>(entries.map((e) => [e, [e]]));
-  const queue = [...entries];
-
-  while (queue.length > 0) {
-    const file = queue.shift()!;
-    const trail = seen.get(file)!;
-    for (const specifier of readImports(file)) {
-      const local = resolveLocal(specifier, file);
-      if (local === null) {
-        // A bare specifier: a package. Record it as a leaf so the assertion can see it.
-        if (!seen.has(specifier)) seen.set(specifier, [...trail, specifier]);
-        continue;
-      }
-      if (seen.has(local)) continue;
-      seen.set(local, [...trail, local]);
-      queue.push(local);
-    }
-  }
-  return seen;
-}
-
 describe("the view route's module graph", () => {
-  const graph = moduleGraph(ENTRIES);
+  const graph = moduleGraph(VIEW_ROUTE_ENTRIES);
 
   it("reaches the modules it is supposed to", () => {
     // Guards the guard: a walker that silently resolved nothing would pass every

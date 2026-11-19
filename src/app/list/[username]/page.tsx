@@ -240,7 +240,11 @@ function Empty({
 function Loading() {
   // ux-29.
   return (
-    <div className="flex flex-col gap-3" aria-label="Loading pastes">
+    <div
+      role="status"
+      className="flex flex-col gap-3"
+      aria-label="Loading pastes"
+    >
       {Array.from({ length: 6 }, (_, i) => (
         <div
           key={i}

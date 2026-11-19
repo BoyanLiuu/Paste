@@ -109,9 +109,7 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
 function Outcomes() {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-muted-foreground text-sm">
-        What a moderator can do
-      </h2>
+      <h2 className="text-muted-foreground text-sm">What a moderator can do</h2>
       <dl className="border-rule bg-card flex flex-col gap-3 rounded-lg border p-4 text-sm">
         <div>
           <dt className="font-medium">Redact</dt>
@@ -140,6 +138,7 @@ function Loading() {
   return (
     <div
       className="border-rule h-96 animate-pulse rounded-lg border"
+      role="status"
       aria-label="Loading the request form"
     />
   );

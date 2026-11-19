@@ -2,10 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { DEFAULT_RETENTION } from "@/lib/expiry/retention";
 import type { ForkProblem } from "@/lib/fork-problem";
-import {
-  BlockedBySecretScan,
-  NeedsOverride,
-} from "@/lib/server/create-errors";
+import { BlockedBySecretScan, NeedsOverride } from "@/lib/server/create-errors";
 import { NothingToFork } from "@/lib/server/fork";
 import { forkPaste } from "@/lib/server/mutations";
 import { getViewer } from "@/lib/server/session";
