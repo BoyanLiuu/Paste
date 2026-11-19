@@ -44,10 +44,16 @@ export function AppShell({
             <Suspense fallback={null}>
               <MyPastesLink active={current === "pastes"} />
             </Suspense>
-            {/* The moderator queue stays omitted until M11 builds /moderation. A nav
-                link that 404s on click is worse than an absent one, and Next
-                prefetches it on every page load, which puts a 404 in the console
-                where it would mask a real error. */}
+            {/* The queue, for moderators only. It stayed omitted until M11 built
+                /moderation, because a nav link that 404s on click is worse than an absent
+                one — Next prefetches it on every page load, which puts a 404 in the
+                console where it would mask a real error.
+
+                Absent for everyone else, and that is presentation: the page itself calls
+                `notFound()` for a non-moderator, which is what actually refuses. */}
+            <Suspense fallback={null}>
+              <ModerationLink active={current === "moderation"} />
+            </Suspense>
           </nav>
 
           <div className="text-muted-foreground ml-auto text-sm">
@@ -60,6 +66,19 @@ export function AppShell({
 
       <main className="container-page flex-1 py-10">{children}</main>
     </>
+  );
+}
+
+/** The queue, for moderators. 404 rather than 403 on the page itself, so the link's
+ *  absence and the page's refusal agree about telling a prober nothing. */
+async function ModerationLink({ active }: { active: boolean }) {
+  const viewer = await getViewer();
+  if (viewer.kind !== "user" || !viewer.user.isModerator) return null;
+
+  return (
+    <NavLink href="/moderation" active={active}>
+      Removal requests
+    </NavLink>
   );
 }
 

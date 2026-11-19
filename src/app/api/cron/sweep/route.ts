@@ -28,6 +28,7 @@
 
 import { NextResponse } from "next/server";
 
+import { record } from "@/lib/audit";
 import { prisma } from "@/lib/server/prisma";
 import { deleteBody, storageConfigured } from "@/lib/storage/body";
 
@@ -252,23 +253,16 @@ async function purgeOne(pasteId: string): Promise<void> {
 
   // 5. The record that it happened. Last, because it describes completed work — and
   //    idempotent, so a re-claimed row does not write a second row for one purge.
-  try {
-    await prisma.auditLog.create({
-      data: {
-        action: "paste.purged",
-        subjectType: "paste",
-        subjectId: pasteId,
-        dedupeKey: pasteId,
-        payload: { revisions: revisions.length, by: "sweeper" },
-      },
-    });
-  } catch (error) {
-    if (!isUniqueViolation(error)) throw error;
-  }
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) return false;
-  const code = (error as { code?: unknown }).code;
-  return code === "23505" || code === "P2002";
+  //
+  //    `actorId` is null and stays null: the sweeper is nobody. Attributing a scheduled
+  //    purge to a person would be a lie in the one record meant to be trusted. The paste
+  //    id alone is a safe dedupe key here for the same reason — there is no actor to
+  //    distinguish, and only one purge can ever happen per paste.
+  await record({
+    action: "paste.purged",
+    subjectType: "paste",
+    subjectId: pasteId,
+    dedupeKey: pasteId,
+    payload: { revisions: revisions.length, by: "sweeper" },
+  });
 }

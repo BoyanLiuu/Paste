@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import type { ForkProblem } from "@/lib/fork-problem";
 import { RangeSelectMount } from "@/components/range-select-mount";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ export function PasteView({
   paste,
   renderedHtml,
   forks,
+  forkProblem = null,
 }: {
   paste: Paste;
   /** Null when no render was stored — above the threshold, or purged. Not an error:
@@ -36,6 +38,10 @@ export function PasteView({
    *  render safe to delete. */
   renderedHtml: string | null;
   forks: Paste[];
+  /** Why the last fork attempt was refused, from `?fork=`. The action redirects back
+   *  here rather than rendering an error page, because the thing the reader wanted is
+   *  this paste and it is still readable. */
+  forkProblem?: ForkProblem | null;
 }) {
   const mode = renderMode(paste.byteSize, paste.lineCount);
   const body = paste.body ?? "";
@@ -76,6 +82,7 @@ export function PasteView({
           </div>
         </div>
 
+        {forkProblem !== null ? <ForkRefused problem={forkProblem} /> : null}
         {paste.state === "redacted" ? <RedactionNotice paste={paste} /> : null}
         {mode === "plain" ? (
           <Banner>
@@ -101,7 +108,7 @@ export function PasteView({
           <span className="num text-muted-foreground text-sm">
             {formatCount(paste.lineCount)} lines, {formatBytes(paste.byteSize)}
           </span>
-          <div className="ml-auto flex flex-wrap gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <Button asChild size="sm" variant="outline">
               {/* The raw endpoint, not the DOM: numbers rendered as text would be
                   captured by a copy, and the raw bytes are the canonical content. */}
@@ -110,6 +117,17 @@ export function PasteView({
             <Button asChild size="sm" variant="outline">
               <a href={downloadUrl(paste.id)}>Download</a>
             </Button>
+            {/* A plain form posting to a ROUTE, referenced by URL rather than imported.
+                An imported server action would put the create path — and therefore Shiki —
+                in this page's module graph, which N11 forbids and
+                `view-route-imports.spec.ts` catches. It also means forking needs no client
+                JavaScript on a page whose one client child attaches a selection listener.
+                The route redirects to the new paste, or back here with `?fork=<reason>`. */}
+            <form method="post" action={`/p/${paste.id}/fork`}>
+              <Button type="submit" size="sm" variant="outline">
+                Fork
+              </Button>
+            </form>
           </div>
         </div>
 
@@ -130,6 +148,19 @@ export function PasteView({
         />
 
         {paste.lineNumbers ? <RangeSelectMount targetId={BODY_ID} /> : null}
+
+        {/* BELOW THE BODY AND UNDERSTATED, which is a judgement the design makes and worth
+            keeping: removal is a request a human reads, and putting it next to Fork in the
+            action row would make "report this" look like a feature of reading a snippet.
+            §6.3's bias is toward keeping pastes. */}
+        <p className="text-muted-foreground text-sm">
+          {paste.request !== null ? (
+            <>Request #{paste.request} is open on this paste. </>
+          ) : null}
+          <Link href={`/p/${paste.id}/request-removal`} className="underline">
+            Request removal
+          </Link>
+        </p>
       </div>
 
       <aside className="flex flex-col gap-6">
@@ -149,12 +180,48 @@ function StateBadge({ paste }: { paste: Paste }) {
   return <Badge variant="destructive">{paste.state}</Badge>;
 }
 
-function Banner({ children }: { children: React.ReactNode }) {
+function Banner({
+  children,
+  role,
+}: {
+  children: React.ReactNode;
+  role?: "status";
+}) {
   return (
-    <p className="border-rule bg-card text-ink-2 rounded-lg border px-4 py-3 text-sm">
+    <p
+      role={role}
+      className="border-rule bg-card text-ink-2 rounded-lg border px-4 py-3 text-sm"
+    >
       {children}
     </p>
   );
+}
+
+/**
+ * Why the fork was refused, on the page the reader is still looking at.
+ *
+ * THE BLOCKED CASE IS THE AWKWARD ONE and it has to be said plainly: the scanner's rules
+ * grow, so a paste accepted months ago can fail today's scan — and the fork is refused
+ * while the original sits right there, readable. That looks like a contradiction unless
+ * someone explains it, and the explanation is §6.3's: the source is grandfathered because
+ * destroying it is a moderator's decision with its own queue, and a new paste has no such
+ * claim. Without this text the reader's reasonable conclusion is that forking is broken.
+ */
+function ForkRefused({ problem }: { problem: ForkProblem }) {
+  const message: Record<ForkProblem, string> = {
+    blocked:
+      "The fork was refused: the scanner found a credential in this text. A fork is a new paste, so it is scanned with today’s rules — which can catch something that was allowed when this paste was written. The original is unchanged, because removing it is a separate decision.",
+    override:
+      "The fork was refused: the scanner flagged something that needs a justification. Copy the text into a new paste, where you can review the finding and say why it is safe.",
+    gone: "There is nothing to fork: this paste’s bytes have been removed.",
+    signin: "Sign in to fork a paste.",
+    failed: "The fork did not go through. Nothing was created — try again.",
+  };
+
+  // The same banner every other notice on this page uses. A refusal does not need its own
+  // visual language — the sentence says it was refused, and an accent stripe on one card
+  // would be the only one in the product.
+  return <Banner role="status">{message[problem]}</Banner>;
 }
 
 function RedactionNotice({ paste }: { paste: Paste }) {

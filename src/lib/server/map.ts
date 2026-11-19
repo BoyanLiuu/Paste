@@ -12,6 +12,7 @@ import type {
   LanguageSource,
   Paste,
   PasteState,
+  RemovalReason,
   RetentionCode,
   Revision,
   Storage,
@@ -35,6 +36,16 @@ export interface PasteRow {
   viewCount: number;
   owner: { username: string };
   revisions: RevisionRow[];
+  requests: RequestRow[];
+}
+
+/** Only the two statuses that are visible on a paste — see `removalOf`. */
+export interface RequestRow {
+  id: number;
+  status: string;
+  reasonCode: string;
+  decidedAt: Date | null;
+  decidedBy: { username: string } | null;
 }
 
 export interface RevisionRow {
@@ -73,6 +84,7 @@ export function toPaste(row: PasteRow): Paste {
     (a, b) => a.revisionNo - b.revisionNo,
   );
   const head = revisions.at(-1);
+  const removal = removalOf(row.requests);
 
   if (head === undefined) {
     // Not defensive padding: a paste without a revision cannot be rendered, cannot be
@@ -95,9 +107,7 @@ export function toPaste(row: PasteRow): Paste {
     expiresAt: iso(row.expiresAt),
     purgeAfter: iso(row.purgeAfter),
     state: row.state as PasteState,
-    // M11 writes removal requests; until then no row can carry one, and inventing a
-    // shape for it here would be guessing at a schema that does not exist yet.
-    removedBy: null,
+    removedBy: removal.removedBy,
     forkedFrom: row.forkedFrom,
     createdVia: row.createdVia as Paste["createdVia"],
     views: row.viewCount,
@@ -111,8 +121,59 @@ export function toPaste(row: PasteRow): Paste {
     storage: storageOf(head),
     revisions: revisions.map(toRevision),
     override: null,
-    request: null,
+    request: removal.request,
   };
+}
+
+/**
+ * What a removal decision put on the face of the paste.
+ *
+ * WITHOUT THIS THE TOMBSTONE LIES. A moderator deletes a paste, so `state` becomes
+ * `purged` and the 410 receipt takes its `purged` branch: "It expired on {expiresAt} and
+ * its bytes were purged on {purgeAfter}". Neither happened. For a paste destroyed an hour
+ * after it was written those are dates in the FUTURE, and for `retention: "never"` they are
+ * null and render as 1 Jan 1970. The one screen whose whole job is to be believed by
+ * someone reading a two-year-old ticket was printing a fabricated date — and the `removed`
+ * branch that states the truth was unreachable, because this mapper returned a hardcoded
+ * null through M11's own milestone.
+ *
+ * `removedBy` is set ONLY by a `deleted` decision, never by a redaction: `livenessFrom`
+ * treats a non-null `removedBy` as gone, and a redacted paste serves its cleaned revision.
+ *
+ * A DENIED REQUEST LEAVES NOTHING. `request` drives the "under review" badge on the list
+ * row, so carrying a denial there would mark a paste as under review permanently — after a
+ * decision that deliberately changed nothing.
+ */
+function removalOf(requests: RequestRow[]): {
+  removedBy: Paste["removedBy"];
+  request: number | null;
+} {
+  // `decidedAt` is required rather than defaulted. One statement writes `status` and
+  // `decided_at` together, so a `deleted` row without a timestamp cannot exist — and
+  // defaulting it would print an epoch date on the screen this whole function exists to
+  // stop printing fabricated dates.
+  const deleted = requests.find(
+    (r): r is RequestRow & { decidedAt: Date } =>
+      r.status === "deleted" && r.decidedAt !== null,
+  );
+  const open = requests.find((r) => r.status === "open");
+
+  if (deleted !== undefined) {
+    return {
+      removedBy: {
+        // `decided_by` is SET NULL when a moderator's account goes, so the name can be
+        // missing from a decision that definitely happened. The receipt still has to read
+        // as a sentence.
+        who: deleted.decidedBy?.username ?? "a moderator",
+        at: deleted.decidedAt.toISOString(),
+        reason: deleted.reasonCode as RemovalReason,
+        request: deleted.id,
+      },
+      request: deleted.id,
+    };
+  }
+
+  return { removedBy: null, request: open?.id ?? null };
 }
 
 /**
@@ -139,6 +200,14 @@ function toRevision(row: RevisionRow): Revision {
   };
 }
 
+/**
+ * The request statuses a reader can see, and therefore the only ones worth fetching.
+ *
+ * Mutable `string[]` rather than a `const` tuple because Prisma's generated `in` filter
+ * rejects a readonly array, and the surrounding `as const` would make one.
+ */
+const VISIBLE_REQUEST_STATUSES: string[] = ["open", "deleted"];
+
 /** The `include` every query needs to satisfy `PasteRow`. Shared so a new call site
  *  cannot forget a relation and fail at runtime inside the mapper. */
 export const PASTE_INCLUDE = {
@@ -146,5 +215,25 @@ export const PASTE_INCLUDE = {
   revisions: {
     include: { createdBy: { select: { username: true } } },
     orderBy: { revisionNo: "asc" },
+  },
+  // Only the two statuses a reader can see, and newest first.
+  //
+  // `where` rather than fetching them all: a paste can collect any number of denied
+  // requests, and none of them is visible on any screen. This keeps the extra read
+  // proportional to what is displayed instead of to how often someone complained.
+  //
+  // Covered by `deletion_requests_by_paste`. Without that index this join is a sequential
+  // scan of a table N8 sizes at 40 000 rows, on every paste read — which is why the index
+  // and this include landed in the same change.
+  requests: {
+    where: { status: { in: VISIBLE_REQUEST_STATUSES } },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      status: true,
+      reasonCode: true,
+      decidedAt: true,
+      decidedBy: { select: { username: true } },
+    },
   },
 } as const;

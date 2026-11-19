@@ -50,11 +50,81 @@ import { pasteLiveness } from "@/lib/server/liveness-probe";
 
 //
 
-/** Marks the proxy's own internal fetch, so it does not recurse into itself. */
+// Marking the proxy's own internal fetch, so it does not recurse into itself.
+//
+// THE VALUE WAS THE LITERAL "1", which any client can send — and that was not a cosmetic
+// weakness. One forged header skipped every decision this file makes: `/moderation`
+// answered 200 with "Removal requests" in the title, undoing the gate below, and a gone
+// paste answered 200 instead of 410. Measured on the built server, not reasoned about.
+//
+// Two changes, because neither is sufficient alone:
+//
+//   TOKEN   the marker is a secret, so forging it is guesswork. From the environment when
+//           set, so every instance of a horizontally scaled deployment agrees; otherwise
+//           per-process, which is right for one server and for the test suite.
+//   HOPS    a plain counter, and the reason the token is safe to rely on. If the self-fetch
+//           lands on an instance whose token differs — a rolling deploy, or an unset
+//           variable behind a load balancer — the inner request looks external, and without
+//           a cap it would fetch itself again from there. Unbounded fan-out across
+//           instances is a worse failure than the leak this fixes, so the hop count stops
+//           it at one regardless of whether the token matched.
+//
+// A client can still forge the hop count and get its OWN request answered 200 instead of
+// 410. That residue is deliberate: the body is still the tombstone the page computed, so a
+// forger misleads nobody but themselves, and the alternative is a recursion risk in
+// production. Set `PASTE_INTERNAL_TOKEN` in deployment and even that closes.
 const INTERNAL = "x-paste-internal";
+const HOPS = "x-paste-hops";
+const TOKEN = process.env.PASTE_INTERNAL_TOKEN ?? crypto.randomUUID();
 
-export async function viewRoute(request: NextRequest): Promise<NextResponse> {
+/**
+ * A path with no route behind it, rendered to produce the generic not-found body.
+ *
+ * Used by the /moderation gate so a refusal is byte-identical to any unknown URL. Rendering
+ * /moderation itself and re-labelling it 404 was not enough: the page's static `metadata`
+ * puts `<title>Removal requests — Paste</title>` in the shell, so the correct status
+ * arrived carrying the disclosure it was meant to prevent.
+ *
+ * `_paste` is reserved rather than arbitrary — if a route ever claims it, the gate starts
+ * serving that route's body, which `view-route.spec.ts` asserts against.
+ */
+const NOT_FOUND_PATH = "/_paste/not-found";
+
+export async function viewRoute(
+  request: NextRequest,
+  clerkUserId: string | null = null,
+): Promise<NextResponse> {
   const path = request.nextUrl.pathname;
+
+  // Whether this is the proxy talking to itself. Two signals, and `view-route.ts`'s header
+  // comment explains why it takes both.
+  const internal =
+    request.headers.get(INTERNAL) === TOKEN ||
+    Number(request.headers.get(HOPS) ?? "0") >= 1;
+
+  // THE GATE RUNS EVEN ON AN APPARENTLY INTERNAL REQUEST, which is the fix for the forged
+  // header. It can sit above the self-fetch guard because its own `withStatus` call renders
+  // NOT_FOUND_PATH — a path this branch does not match — so the inner request cannot come
+  // back here. That is also what made the first version recurse: it fetched /moderation.
+  //
+  // /moderation answers 404 to anyone who does not moderate.
+  //
+  // 404 AND NOT 403: a 403 confirms the page exists, which tells a prober this
+  // installation has a moderation surface and that they are not on it. `notFound()` in the
+  // page renders the right body but cannot set the status — the route has a static shell,
+  // so Next answers with the shell's own 200 and a prober sees 200 here against 404 for
+  // any genuinely missing route. The page's own comment claimed 404 and was wrong until
+  // this branch existed.
+  if (path === "/moderation" || path.startsWith("/moderation/")) {
+    const { moderatesByClerkId } = await import("@/lib/server/liveness-probe");
+    if (!(await moderatesByClerkId(clerkUserId))) {
+      const headers = new Headers(request.headers);
+      return withStatus(request, headers, "", 404, "Not Found", NOT_FOUND_PATH);
+    }
+    return NextResponse.next();
+  }
+
+  if (internal) return NextResponse.next();
 
   if (!path.startsWith("/p/")) {
     if (
@@ -87,9 +157,7 @@ export async function viewRoute(request: NextRequest): Promise<NextResponse> {
   // reached from the opposite direction.
   const inherited = request.headers.get("x-nonce");
   const nonce =
-    request.headers.get(INTERNAL) === "1" && inherited !== null
-      ? inherited
-      : crypto.randomUUID();
+    internal && inherited !== null ? inherited : crypto.randomUUID();
   const csp = viewCsp(nonce);
 
   // Next looks for the nonce here, on the *request*, to apply it to its own scripts.
@@ -103,9 +171,9 @@ export async function viewRoute(request: NextRequest): Promise<NextResponse> {
     return response;
   };
 
-  // The inner half of the self-fetch below. Without this the proxy would call itself
-  // forever, each call doing another database lookup.
-  if (request.headers.get(INTERNAL) === "1") return passThrough();
+  // The inner half of the self-fetch below, with the inherited nonce attached. Without
+  // this the proxy would call itself forever, each call doing another database lookup.
+  if (internal) return passThrough();
 
   const id = request.nextUrl.pathname.split("/")[2];
   if (id === undefined || id === "") return passThrough();
@@ -146,7 +214,7 @@ function passThroughFor(
   csp: string,
 ): NextResponse {
   const response = NextResponse.next({ request: { headers } });
-  response.headers.set("content-security-policy", csp);
+  if (csp !== "") response.headers.set("content-security-policy", csp);
   return response;
 }
 
@@ -163,9 +231,15 @@ async function withStatus(
   csp: string,
   status: number,
   statusText: string,
+  /** Render this path instead of the requested one. The /moderation gate's disclosure fix. */
+  renderPath?: string,
 ): Promise<NextResponse> {
   const inner = new Headers(headers);
-  inner.set(INTERNAL, "1");
+  inner.set(INTERNAL, TOKEN);
+  inner.set(
+    HOPS,
+    String(Number(request.headers.get(HOPS) ?? "0") + 1),
+  );
 
   // Where this fetch is allowed to go, pinned rather than inferred.
   //
@@ -195,7 +269,7 @@ async function withStatus(
   }
 
   const target = new URL(
-    request.nextUrl.pathname + request.nextUrl.search,
+    renderPath ?? request.nextUrl.pathname + request.nextUrl.search,
     base,
   );
 
@@ -229,7 +303,7 @@ async function withStatus(
     headers: rendered.headers,
   });
 
-  response.headers.set("content-security-policy", csp);
+  if (csp !== "") response.headers.set("content-security-policy", csp);
   // A moderator can un-expire inside the grace window (§6.4), so a cached 410 would
   // outlive the decision that reversed it. A 404 is cached by some intermediaries by
   // default, and an id can start existing.

@@ -33,6 +33,7 @@ import {
   withTestOwner,
 } from "@/lib/server/create-test-harness";
 import { clearLivenessMemo } from "@/lib/server/liveness-probe";
+import { prisma } from "@/lib/server/prisma";
 
 const reason = skipReason();
 
@@ -44,7 +45,10 @@ const reason = skipReason();
  * starting — so it is stubbed, and what is asserted is the status the proxy chose. The
  * body is the page's, unchanged, which is the point of the design.
  */
-async function statusFor(path: string): Promise<number> {
+async function statusFor(
+  path: string,
+  clerkUserId: string | null = null,
+): Promise<number> {
   const fetchSpy = vi
     .spyOn(globalThis, "fetch")
     .mockResolvedValue(new Response("<html>page</html>", { status: 200 }));
@@ -53,6 +57,7 @@ async function statusFor(path: string): Promise<number> {
     const { viewRoute } = await import("@/lib/http/view-route");
     const response = await viewRoute(
       new NextRequest(`http://localhost:3025${path}`),
+      clerkUserId,
     );
     return response.status;
   } finally {
@@ -119,11 +124,15 @@ describe.skipIf(reason !== null)(
         const fetchSpy = vi.spyOn(globalThis, "fetch");
         try {
           const { viewRoute } = await import("@/lib/http/view-route");
-          // The inner half of the self-fetch. Without the marker header the proxy would
-          // call itself forever, each call doing another database lookup.
+          // The inner half of the self-fetch, recognised by its HOP COUNT rather than by
+          // the marker value. The marker is now a per-process secret — which is the point,
+          // since the literal "1" it replaced let any client skip this whole file — so a
+          // test cannot construct one, and asserting on the hop count is better anyway:
+          // the hop count is what has to stop the recursion when the token does NOT match,
+          // which is the case that would otherwise fan out across instances.
           const response = await viewRoute(
             new NextRequest(`http://localhost:3025/p/${id}`, {
-              headers: { "x-paste-internal": "1" },
+              headers: { "x-paste-hops": "1" },
             }),
           );
 
@@ -172,6 +181,125 @@ describe.skipIf(reason !== null)(
           else process.env.PASTE_ORIGIN = previous;
         }
       });
+    });
+
+    it("hides /moderation behind the same 404 an unknown route gets", async () => {
+      await withTestOwner(async (owner) => {
+        // A SIGNED-IN NON-MODERATOR, which is the case the page's own `notFound()` already
+        // handled for the body and could not handle for the status: the route is partially
+        // prerendered, so Next answers with the shell's 200. A prober comparing
+        // /moderation against /nope would see 200 against 404 and learn the surface
+        // exists — and the shell's title announced it on the way past.
+        const clerkUserId = `user_${owner.userId}`;
+        await prisma.user.update({
+          where: { id: owner.userId },
+          data: { clerkUserId },
+        });
+
+        expect(await statusFor("/moderation")).toBe(404);
+        expect(await statusFor("/moderation", clerkUserId)).toBe(404);
+
+        // AND THE BODY IS NOT THE MODERATION PAGE'S. The first fix got the status right
+        // and still disclosed the surface: the page's static `metadata` put
+        // `<title>Removal requests — Paste</title>` into the shell, which the self-fetch
+        // then returned under the 404. So the gate renders a path with no route behind it,
+        // and a refusal is the same body any unknown URL gets.
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValue(new Response("<html>404</html>", { status: 404 }));
+        try {
+          const { viewRoute } = await import("@/lib/http/view-route");
+          await viewRoute(
+            new NextRequest("http://localhost:3025/moderation"),
+            null,
+          );
+          const target = String(fetchSpy.mock.calls[0][0]);
+          expect(target).not.toContain("/moderation");
+        } finally {
+          fetchSpy.mockRestore();
+        }
+
+        // 404 AND NOT 403. A 403 is the same disclosure with extra confirmation.
+        await prisma.user.update({
+          where: { id: owner.userId },
+          data: { isModerator: true },
+        });
+        expect(await statusFor("/moderation", clerkUserId)).toBe(200);
+      });
+    });
+
+    it("does not let a forged internal header past the /moderation gate", async () => {
+      await withTestOwner(async (owner) => {
+        const clerkUserId = `user_${owner.userId}`;
+        await prisma.user.update({
+          where: { id: owner.userId },
+          data: { clerkUserId },
+        });
+
+        // THE MARKER WAS THE LITERAL "1", so this header was enough to skip every decision
+        // this file makes: /moderation answered 200 with "Removal requests" in its title,
+        // which is the precise disclosure the gate exists to prevent. The marker is a
+        // secret now, and the gate runs above the self-fetch guard regardless — it can,
+        // because its own render targets a path this branch does not match.
+        const fetchSpy = vi
+          .spyOn(globalThis, "fetch")
+          .mockResolvedValue(new Response("<html>404</html>", { status: 404 }));
+        try {
+          const { viewRoute } = await import("@/lib/http/view-route");
+          const forgeries: Record<string, string>[] = [
+            { "x-paste-internal": "1" },
+            { "x-paste-internal": "true" },
+            { "x-paste-hops": "9" },
+          ];
+          for (const forged of forgeries) {
+            const response = await viewRoute(
+              new NextRequest("http://localhost:3025/moderation", {
+                headers: forged,
+              }),
+              clerkUserId,
+            );
+            expect(response.status, JSON.stringify(forged)).toBe(404);
+          }
+        } finally {
+          fetchSpy.mockRestore();
+        }
+      });
+    });
+
+    it("does not recurse on the internal fetch of /moderation", async () => {
+      // THE BUG THIS EXISTS FOR, which shipped for one build and hung the first request.
+      // The gate calls `withStatus`, which renders the page by fetching this same URL back
+      // through the proxy — and the gate sat ABOVE the marker-header check, so the inner
+      // request hit the gate again and fetched again, forever. The /p/* branch had its own
+      // check and so looked like it covered this.
+      // The gate now runs on this request too, so it DOES fetch — exactly once, to render
+      // the not-found body. What must not happen is that fetch coming back here: the
+      // target is NOT_FOUND_PATH, which this branch does not match, and the hop counter
+      // stops a second round even if an instance's token disagreed.
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("<html>404</html>", { status: 404 }));
+      try {
+        const { viewRoute } = await import("@/lib/http/view-route");
+        const response = await viewRoute(
+          new NextRequest("http://localhost:3025/moderation", {
+            headers: { "x-paste-internal": "1" },
+          }),
+          null,
+        );
+
+        expect(response.status).toBe(404);
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        const target = String(fetchSpy.mock.calls[0][0]);
+        expect(target).not.toContain("/moderation");
+
+        // And the hop counter is handed on, which is what bounds the fan-out if the
+        // self-fetch lands on an instance whose token differs.
+        const sent = fetchSpy.mock.calls[0][1]?.headers as Headers;
+        expect(sent.get("x-paste-hops")).toBe("1");
+      } finally {
+        fetchSpy.mockRestore();
+      }
     });
 
     it("sets a CSP with a per-request nonce on every answer", async () => {

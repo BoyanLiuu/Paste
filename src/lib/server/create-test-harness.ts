@@ -104,6 +104,17 @@ async function cleanUp(userId: string): Promise<void> {
       });
     }
 
+    // Removal requests this user FILED, which may be against another user's paste.
+    //
+    // `deletion_requests.requester_id` has no cascade — deliberately, because who asked is
+    // part of the record and deleting a user should not silently erase it. So a moderator
+    // who filed a request about someone else's paste cannot be deleted until the request
+    // is, and deleting by `ownerId` below never reaches it. The same shape as
+    // `paste_revisions.created_by` in M7.
+    //
+    // `decided_by` is ON DELETE SET NULL, so a decided request does not need this.
+    await prisma.deletionRequest.deleteMany({ where: { requesterId: userId } });
+
     // Then the pastes, which cascade to revisions, renders, findings and views.
     //
     // Deleting the user first does NOT work, and the reason is a deliberate schema

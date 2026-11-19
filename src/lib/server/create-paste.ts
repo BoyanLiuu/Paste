@@ -16,8 +16,14 @@
 
 import "server-only";
 
+import {
+  BlockedBySecretScan,
+  NeedsOverride,
+} from "@/lib/server/create-errors";
+
 import { randomUUID } from "node:crypto";
 
+import { record, recordIn } from "@/lib/audit";
 import { resolveLanguage } from "@/lib/detect/ladder";
 import { expiresAt, purgeAfter } from "@/lib/expiry/retention";
 import { withFreshId } from "@/lib/ids";
@@ -46,6 +52,10 @@ export interface CreateArgs {
   createdVia: "web" | "api";
   /** sha256(ip + daily salt), never the address itself (§6.1). */
   createdIpHash?: string;
+  /** The paste this was forked from, for the view page's provenance panel. A fork runs the
+   *  full create path including the scanner, so this is the only field that marks it as
+   *  one (§6.3). */
+  forkedFrom?: string;
   /**
    * Tier-2/3 findings the creator chose to save past, with their justification.
    *
@@ -55,29 +65,14 @@ export interface CreateArgs {
   override?: { justification: string };
 }
 
-/** A tier-1 refusal. Carries the findings so the form can offer redaction (§6.1). */
-export class BlockedBySecretScan extends Error {
-  constructor(
-    readonly findings: Finding[],
-    readonly scanState: "complete" | "partial",
-  ) {
-    super(
-      `blocked: ${findings.filter((f) => f.tier === 1).length} tier-1 finding(s)`,
-    );
-    this.name = "BlockedBySecretScan";
-  }
-}
-
-/** A tier-2/3 finding with no justification. Overridable, unlike tier 1. */
-export class NeedsOverride extends Error {
-  constructor(
-    readonly findings: Finding[],
-    readonly scanState: "complete" | "partial",
-  ) {
-    super(`needs override: ${findings.length} finding(s)`);
-    this.name = "NeedsOverride";
-  }
-}
+// `BlockedBySecretScan` and `NeedsOverride` moved to `create-errors.ts`, re-exported here
+// so every existing call site keeps working.
+//
+// They left because catching them needs `instanceof` — a real import, not a type-only one —
+// and this module pulls in the highlighter for stage 8. The fork action caught both and so
+// put Shiki in the view page's graph, breaking N2's stated zero. An error class should be
+// the cheapest thing to import from a module, not the most expensive.
+export { BlockedBySecretScan, NeedsOverride } from "@/lib/server/create-errors";
 
 export async function createPasteInDatabase(args: CreateArgs): Promise<Paste> {
   // --- stage 4: normalise, so everything below measures the bytes that get stored
@@ -153,6 +148,7 @@ export async function createPasteInDatabase(args: CreateArgs): Promise<Paste> {
           state: "live",
           createdVia: args.createdVia,
           createdIpHash: args.createdIpHash ?? null,
+          forkedFrom: args.forkedFrom ?? null,
           createdAt,
           updatedAt: createdAt,
         },
@@ -206,22 +202,20 @@ export async function createPasteInDatabase(args: CreateArgs): Promise<Paste> {
         });
       }
 
-      await tx.auditLog.create({
-        data: {
-          actorId: args.ownerId,
-          action: "paste.created",
-          subjectType: "paste",
-          subjectId: id,
-          payload: {
+      await recordIn(tx, {
+        action: "paste.created",
+        subjectType: "paste",
+        subjectId: id,
+        actorId: args.ownerId,
+        payload: {
             via: args.createdVia,
             language: detection.language,
             languageSource: detection.source,
             byteSize,
             lineCount,
             retention: args.retention,
-            findings: result.findings.length,
-            scanState: result.state,
-          },
+          findings: result.findings.length,
+          scanState: result.state,
         },
       });
 
@@ -302,42 +296,29 @@ async function recordBlock(
 ): Promise<void> {
   const tier1 = findings.filter((f) => f.tier === 1);
 
-  try {
-    await prisma.auditLog.create({
-      data: {
-        actorId: ownerId,
-        action: "paste.blocked",
-        subjectType: "attempt",
-        subjectId: sha256,
-        dedupeKey: `${ownerId}:${sha256}`,
-        payload: {
-          // Rule ids and previews only. NEVER the matched text: a table of extracted
-          // credentials is a better target than the pastes they came from (§6.1).
-          rules: tier1.map((f) => ({
-            rule: f.rule,
-            line: f.line,
-            preview: f.preview,
-          })),
-          tier1Count: tier1.length,
-          totalFindings: findings.length,
-        },
-      },
-    });
-  } catch (error) {
-    // The unique index on (subject_type, subject_id, action, dedupe_key) makes a repeat
-    // attempt a no-op rather than a second row. Any other failure must not convert a
-    // refusal into a 500 — the refusal is the security-relevant outcome and it still
-    // holds whether or not the record landed.
-    if (!isUniqueViolation(error)) {
-      console.error("could not record a blocked attempt", error);
-    }
-  }
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) return false;
-  const code = (error as { code?: unknown }).code;
-  return code === "23505" || code === "P2002";
+  await record({
+    action: "paste.blocked",
+    subjectType: "attempt",
+    // The body hash, because there is no paste id to cite — which is precisely the
+    // property being recorded.
+    subjectId: sha256,
+    actorId: ownerId,
+    // ACTOR + HASH. A bare hash made the first person to paste a given credential the
+    // only one ever recorded, because the unique index carries no actor column. A leaked
+    // key pasted by five people is five facts security needs.
+    dedupeKey: `${ownerId}:${sha256}`,
+    payload: {
+      // Rule ids and previews only. NEVER the matched text: a table of extracted
+      // credentials is a better target than the pastes they came from (§6.1).
+      rules: tier1.map((f) => ({
+        rule: f.rule,
+        line: f.line,
+        preview: f.preview,
+      })),
+      tier1Count: tier1.length,
+      totalFindings: findings.length,
+    },
+  });
 }
 
 const asDate = (value: string | null): Date | null =>

@@ -43,8 +43,14 @@ export const config = {
   ],
 };
 
-export default clerkMiddleware(async (_auth, request) => {
+export default clerkMiddleware(async (auth, request) => {
   // Returning a response ends the request; returning `next()` continues it. Clerk has
   // attached the session by this point, so `auth()` works in whatever renders.
-  return viewRoute(request);
+  //
+  // The Clerk user id is resolved HERE and passed down, because `view-route.ts` must not
+  // import Clerk: doing so drags Next's React client context into anything that imports
+  // it, which breaks every node-environment test. /moderation needs it to answer 404
+  // rather than 403 to a non-moderator.
+  const { userId } = await auth();
+  return viewRoute(request, userId ?? null);
 });

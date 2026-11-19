@@ -105,8 +105,10 @@ export type RemovalReason =
 
 export type Relationship = "owner" | "manager_of_owner" | "security" | "other";
 
-export type RequestStatus =
-  "open" | "redacted" | "deleted" | "denied" | "withdrawn";
+/** `"withdrawn"` was here and is gone: nothing ever wrote it, no screen offers it, and
+ *  M11's `CHECK` on the column rejects it. Keeping a value the database refuses would mean
+ *  the type described a state the system cannot reach (Appendix G). */
+export type RequestStatus = "open" | "redacted" | "deleted" | "denied";
 
 export interface AuditEntry {
   at: string;

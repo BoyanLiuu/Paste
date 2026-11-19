@@ -13,6 +13,7 @@ import {
   getRenderForPaste,
 } from "@/lib/server/paste-service";
 import { getViewer } from "@/lib/server/session";
+import { asForkProblem } from "@/lib/fork-problem";
 
 // GET /p/:id — the hot path (ux-14 – ux-27, ux-50, 52, 53, 54).
 //
@@ -38,19 +39,27 @@ import { getViewer } from "@/lib/server/session";
 
 export default async function Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   return (
     <AppShell current={null}>
       <Suspense fallback={<Loading />}>
-        <Content params={params} />
+        <Content params={params} searchParams={searchParams} />
       </Suspense>
     </AppShell>
   );
 }
 
-async function Content({ params }: { params: Promise<{ id: string }> }) {
+async function Content({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   // Declares this render request-time. §6.3 requires expiry be recomputed against the
   // real clock on every read rather than trusted from `state`, so livenessOf() calls
   // Date.now() — and under `cacheComponents` reading the clock while prerendering is
@@ -88,7 +97,19 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
     getForks(viewer, paste.id),
   ]);
 
-  return <PasteView paste={paste} renderedHtml={stored} forks={forks} />;
+  // `?fork=` is set by the fork action when it refuses, which is the only reason this
+  // page reads a query string. Validated against the union rather than cast, so a
+  // hand-typed value renders no banner instead of an empty one.
+  const forkProblem = asForkProblem((await searchParams).fork);
+
+  return (
+    <PasteView
+      paste={paste}
+      renderedHtml={stored}
+      forks={forks}
+      forkProblem={forkProblem}
+    />
+  );
 }
 
 function Loading() {

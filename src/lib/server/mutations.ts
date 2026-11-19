@@ -12,8 +12,15 @@ import "server-only";
 
 import { DEFAULT_RETENTION } from "@/lib/expiry/retention";
 import { createPasteInDatabase } from "@/lib/server/create-paste";
+import {
+  decideInDatabase,
+  decidePostCommit,
+  keysToDelete,
+} from "@/lib/server/decide";
+import { forkPasteInDatabase } from "@/lib/server/fork";
+import { requestRemovalInDatabase } from "@/lib/server/removal";
 import { userIdFor } from "@/lib/server/users";
-import { assertCan } from "@/lib/server/viewer";
+import { assertCan, isModerator } from "@/lib/server/viewer";
 import type {
   Paste,
   RemovalReason,
@@ -22,23 +29,16 @@ import type {
   Viewer,
 } from "@/lib/types";
 
-/**
- * Thrown by every mutation during phase 1.
- *
- * The message is asserted by a test and shown by the "nothing was sent" screens, so it
- * is part of the contract rather than debug text.
- */
-export class NotImplementedInStaticPhase extends Error {
-  constructor(
-    readonly operation: string,
-    readonly landsIn: string,
-  ) {
-    super(
-      `${operation} is not implemented in the static phase; it lands in ${landsIn}`,
-    );
-    this.name = "NotImplementedInStaticPhase";
-  }
-}
+// `NotImplementedInStaticPhase` lived here and is gone.
+//
+// Every mutation this module declares is now implemented — `createPaste` at M7, the other
+// three at M11 — so the class had no throw site left and existed only to be asserted by
+// the test that asserted it. The phase-1 "nothing was sent" screens it fed (ux-05, 36, 44,
+// 46) describe a state the product no longer has.
+//
+// What it bought was real while it lasted: declaring all four signatures at M1 and letting
+// them refuse meant M2's form called the real mutation from the first week, and M7 and M11
+// changed bodies rather than call sites.
 
 export interface CreatePasteInput {
   body: string;
@@ -104,32 +104,93 @@ export async function createPaste(
   });
 }
 
-/** M11. A fork re-runs the scanner, because a fork is a create (§6.3). */
+/**
+ * Fork a paste. Re-runs the scanner, because a fork is a create (§6.3).
+ *
+ * A tier-1 hit therefore refuses the fork even though the source still reads fine — the
+ * source is grandfathered because destroying it is a separate decision with its own queue,
+ * while a new paste has no such claim. See `fork.ts`.
+ */
 export async function forkPaste(
   viewer: Viewer,
-  _id: string,
-  _retention: RetentionCode,
+  id: string,
+  retention: RetentionCode,
+  neverReason?: string,
 ): Promise<Paste> {
   assertCan(viewer, "paste:fork");
-  throw new NotImplementedInStaticPhase("forkPaste", "M11");
+  const ownerId = await userIdFor(viewer);
+
+  return forkPasteInDatabase({
+    sourceId: id,
+    ownerId,
+    retention,
+    neverReason,
+  });
 }
 
-/** M11. 403 at submit unless owner, manager-of-owner or security. */
+/**
+ * Open a removal request. Refused at submit unless the viewer owns the paste or moderates.
+ *
+ * `relationship` is what the requester claims about themselves, recorded for the moderator
+ * to read and never the thing that grants permission — `removal.ts` explains why
+ * `manager_of_owner` is refused rather than trusted.
+ */
 export async function requestRemoval(
   viewer: Viewer,
-  _id: string,
-  _input: RequestRemovalInput,
-): Promise<void> {
+  id: string,
+  input: RequestRemovalInput,
+): Promise<{ requestId: number }> {
   assertCan(viewer, "removal:request");
-  throw new NotImplementedInStaticPhase("requestRemoval", "M11");
+  const requesterId = await userIdFor(viewer);
+
+  return requestRemovalInDatabase({
+    pasteId: id,
+    requesterId,
+    isModerator: isModerator(viewer),
+    relationship: input.relationship,
+    reason: input.reason,
+    justification: input.justification,
+  });
 }
 
-/** M11. Must lose a race: the second decision on one request gets 409. */
+/**
+ * Decide a removal request. Must lose a race: the second decision gets 409.
+ *
+ * Two moderators opening the same queue is the normal way a queue gets worked, not a rare
+ * race — `decide.ts` makes the claim and the conflict check one statement for that reason.
+ */
 export async function decideRequest(
   viewer: Viewer,
-  _requestId: number,
-  _input: DecideRequestInput,
+  requestId: number,
+  input: DecideRequestInput,
 ): Promise<void> {
   assertCan(viewer, "removal:decide");
-  throw new NotImplementedInStaticPhase("decideRequest", "M11");
+  const moderatorId = await userIdFor(viewer);
+
+  // The storage keys are read BEFORE the transaction nulls them, and the objects are
+  // deleted after it commits. A bucket delete cannot be rolled back, so doing it inside
+  // would destroy bytes a failed transaction then claims still exist.
+  const request = await requestSubject(requestId);
+  const keys =
+    request === null ? [] : await keysToDelete(request.pasteId, input.action);
+
+  await decideInDatabase({
+    requestId,
+    moderatorId,
+    action: input.action,
+    note: input.note,
+  });
+
+  await decidePostCommit(keys);
+}
+
+/** The paste a request is about, for reading its storage keys before they are nulled. */
+async function requestSubject(
+  requestId: number,
+): Promise<{ pasteId: string } | null> {
+  const { prisma } = await import("@/lib/server/prisma");
+  return prisma.deletionRequest.findUnique({
+    where: { id: requestId },
+    select: { pasteId: true },
+  });
 }

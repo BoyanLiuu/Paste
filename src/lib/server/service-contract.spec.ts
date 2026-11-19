@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import * as mutations from "@/lib/server/mutations";
-import { NotImplementedInStaticPhase } from "@/lib/server/mutations";
 import * as service from "@/lib/server/paste-service";
 import type { Viewer } from "@/lib/types";
 
@@ -101,40 +100,15 @@ describe("mutations", () => {
     expect(firstParamName(fn)).toBe("viewer");
   });
 
-  /** Implemented, and therefore no longer expected to refuse. M7 landed `createPaste`;
-   *  the others land in M11, and each moves out of this list as it does. */
-  const IMPLEMENTED = new Set(["createPaste"]);
-
-  // A SIGNED-IN viewer, because the capability table now actually denies.
+  // The `NotImplementedInStaticPhase` assertions that lived here are gone with the class.
   //
-  // These assertions used an anonymous one, which worked while M1's denial table was
-  // empty. M10 filled it in, so an anonymous caller is refused by `assertCan` BEFORE the
-  // not-implemented throw — which is the correct order, and meant this test was no longer
-  // reaching the thing it was written to check.
-  const MEMBER: Viewer = {
-    kind: "user",
-    user: { username: "member", displayName: "Member", isModerator: true },
-  };
+  // They checked that each unimplemented mutation refused with a message naming the
+  // milestone that would implement it. All four are implemented now — `createPaste` at M7,
+  // the rest at M11 — so there is no throw site left to assert, and keeping the class
+  // alive purely to satisfy its own test is how dead code survives.
+  //
+  // The contract that mattered is the one still checked above: every mutation is `async`
+  // and takes the viewer first. That is what let M7 and M11 change bodies without touching
+  // a single call site.
 
-  // The message is shown by the "nothing was sent" screens and names the milestone that
-  // implements it, so it is contract rather than debug text.
-  it.each(fns.filter(([name]) => !IMPLEMENTED.has(name)))(
-    "%s rejects with NotImplementedInStaticPhase",
-    async (name, fn) => {
-      await expect(
-        (fn as (...a: unknown[]) => Promise<unknown>)(MEMBER, "7fK2mQxZ", {}),
-      ).rejects.toThrow(NotImplementedInStaticPhase);
-      expect(name).toBeTruthy();
-    },
-  );
-
-  it("still declares the refusal the unimplemented mutations share", () => {
-    // The class stays until the last mutation lands. Deleting it the moment one mutation
-    // is implemented would silently drop the contract the "nothing was sent" screens
-    // (ux-05, 36, 44, 46) are built against, and those screens have no other signal.
-    expect(IMPLEMENTED.size).toBeLessThan(fns.length);
-    expect(new NotImplementedInStaticPhase("x", "M11").message).toMatch(
-      /not implemented in the static phase/,
-    );
-  });
 });

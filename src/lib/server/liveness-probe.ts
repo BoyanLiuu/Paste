@@ -117,3 +117,26 @@ function verdictFor(
   if (row === null) return "unknown";
   return livenessFrom(row, now).kind === "live" ? "live" : "gone";
 }
+
+/**
+ * Whether a Clerk user moderates, by their Clerk id.
+ *
+ * Lives beside the liveness probe because it has the same shape and the same caller: a
+ * narrow, single-column read the proxy needs before rendering starts. It takes the Clerk
+ * id rather than a `Viewer` so `view-route.ts` can use it without importing Clerk —
+ * importing `@clerk/nextjs/server` there drags Next's React client context into the
+ * node-environment tests, which is why the proxy and the route logic are separate files
+ * at all.
+ */
+export async function moderatesByClerkId(
+  clerkUserId: string | null,
+): Promise<boolean> {
+  if (clerkUserId === null) return false;
+
+  const row = await prisma.user.findUnique({
+    where: { clerkUserId },
+    select: { isModerator: true },
+  });
+
+  return row?.isModerator ?? false;
+}
