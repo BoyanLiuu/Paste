@@ -40,6 +40,12 @@ export function PasteView({
   const mode = renderMode(paste.byteSize, paste.lineCount);
   const body = paste.body ?? "";
 
+  // A stored render, or escaped plain text. The fallback is a real rendering path, not an
+  // error state: it is the designed answer above the §6.2 threshold, and it is also what
+  // a small paste gets while its render is missing — a failed save-time render, a theme
+  // change, a Shiki upgrade. That second case is announced by a banner below, because
+  // §6.2 is explicit that silently unhighlighted text reads as a bug. The backfill that
+  // fixes it is `api/renders`, out of band, because N2 forbids rendering on a read.
   const html =
     renderedHtml !== null
       ? paste.lineNumbers
@@ -74,6 +80,12 @@ export function PasteView({
         {mode === "plain" ? (
           <Banner>
             Syntax highlighting is off — {formatCount(paste.lineCount)} lines.
+          </Banner>
+        ) : null}
+        {mode === "highlight" && renderedHtml === null ? (
+          <Banner>
+            Syntax highlighting is not ready for this paste yet. The text below
+            is complete.
           </Banner>
         ) : null}
         {mode === "truncated" ? (

@@ -24,6 +24,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
+import { newPasteId } from "@/lib/ids";
 import { prisma } from "@/lib/server/prisma";
 import type { User, Viewer } from "@/lib/types";
 
@@ -102,6 +103,110 @@ async function cleanUp(userId: string): Promise<void> {
     console.error(`FAILED to clean up test user ${userId}`, error);
     throw error;
   }
+}
+
+export interface SeedPaste {
+  /** Minutes before now. Larger is older, so the newest-first order is predictable. */
+  minutesAgo?: number;
+  title?: string | null;
+  language?: string;
+  /** Null for "never". Minutes from now; negative is already expired. */
+  expiresInMinutes?: number | null;
+  state?: string;
+  body?: string;
+  id?: string;
+}
+
+/**
+ * Insert pastes directly, bypassing the create path.
+ *
+ * DELIBERATELY NOT `createPaste`, for two reasons that both matter.
+ *
+ * The rate limit is 20 attempts per minute and is charged on attempts (§4 stage 2), so a
+ * pagination test needing 60 rows cannot go through the create path at all — it would
+ * spend the bucket and then assert against 429s.
+ *
+ * And these tests are about reading: ordering, cursors, expiry comparison. Routing them
+ * through the scanner and the highlighter would make each one slower and would couple a
+ * pagination assertion to the create path's behaviour, so a create-path regression would
+ * fail the pagination suite and point at the wrong module.
+ *
+ * Nothing here is a substitute for the create-path tests, which exercise the real thing.
+ */
+export async function seedPastes(
+  userId: string,
+  seeds: SeedPaste[],
+): Promise<string[]> {
+  // TWO QUERIES, NOT TWO PER ROW. A loop of nested `create` calls was the first version
+  // and it timed out the pagination suite at 5 s: ~107 sequential round trips to a hosted
+  // database is five seconds of latency, nothing else. `createMany` cannot create nested
+  // relations, so the ids are generated here and the revisions reference them.
+  const pastes: unknown[] = [];
+  const revisions: unknown[] = [];
+  const ids: string[] = [];
+
+  for (const [index, seed] of seeds.entries()) {
+    const createdAt = new Date(
+      Date.now() - (seed.minutesAgo ?? index) * 60_000,
+    );
+
+    // `undefined` means "a normal 1-day expiry"; an explicit `null` means never. The two
+    // have to stay distinguishable, which is why this is not `??`.
+    const expiresAt =
+      seed.expiresInMinutes === undefined
+        ? new Date(createdAt.getTime() + 24 * 60 * 60_000)
+        : seed.expiresInMinutes === null
+          ? null
+          : new Date(Date.now() + seed.expiresInMinutes * 60_000);
+
+    const body = seed.body ?? `paste ${index}\n`;
+    // The real generator, not a slice of a uuid. A hex slice contains `0`, which is
+    // not in the base58 alphabet, so those ids fail `isPasteId` — and the proxy refuses
+    // a malformed id with a 404 before it ever reaches the database. Seeded data that
+    // the application itself would reject makes a test assert against a shape that
+    // cannot occur.
+    const id = seed.id ?? newPasteId();
+
+    pastes.push({
+      id,
+      ownerId: userId,
+      title: seed.title ?? null,
+      language: seed.language ?? "plaintext",
+      languageSource: "fallback",
+      lineNumbers: false,
+      retentionCode: expiresAt === null ? "never" : "1d",
+      neverReason: expiresAt === null ? "a test fixture" : null,
+      expiresAt,
+      purgeAfter:
+        expiresAt === null
+          ? null
+          : new Date(expiresAt.getTime() + 30 * 24 * 60 * 60_000),
+      state: seed.state ?? "live",
+      createdVia: "web",
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    revisions.push({
+      pasteId: id,
+      revisionNo: 1,
+      byteSize: new TextEncoder().encode(body).length,
+      lineCount: body.replace(/\n$/, "").split("\n").length,
+      sha256: "a".repeat(64),
+      bodyText: body,
+      reason: "original",
+      scanState: "complete",
+      createdById: userId,
+      createdAt,
+    });
+
+    ids.push(id);
+  }
+
+  await prisma.paste.createMany({ data: pastes as never });
+  await prisma.revision.createMany({ data: revisions as never });
+
+  return ids;
 }
 
 /** Rows this user owns, for the count assertions the block tests depend on. */

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import * as mutations from "@/lib/server/mutations";
 import { NotImplementedInStaticPhase } from "@/lib/server/mutations";
 import * as service from "@/lib/server/paste-service";
-import { revisionKey } from "@/lib/render/keys";
 import { getViewer } from "@/lib/server/viewer";
 import type { Viewer } from "@/lib/types";
 
@@ -56,25 +55,20 @@ describe("service contract", () => {
 
   // Each is called with arguments of the right shape for its own signature: passing a
   // viewer where getRender wants a revision id would pass by accident.
-  const ARGS: Record<string, unknown[]> = {
-    getPaste: [VIEWER, "7fK2mQxZ"],
-    getRaw: [VIEWER, "7fK2mQxZ"],
-    listPastes: [VIEWER, "deepika"],
-    getRender: [revisionKey("7fK2mQxZ", 1)],
-  };
-
-  it.each(exportedFunctions(service))(
-    "%s returns a promise",
-    async (name, fn) => {
-      // What matters is the return type, not the value: an `async` function that someone
-      // later makes synchronous breaks here.
-      const returned = (fn as (...a: unknown[]) => unknown)(
-        ...(ARGS[name] ?? []),
-      );
-      expect(returned).toBeInstanceOf(Promise);
-      await returned;
-    },
-  );
+  it.each(exportedFunctions(service))("%s is declared async", (name, fn) => {
+    // Checked statically rather than by calling.
+    //
+    // This used to invoke each function with a table of fixture-shaped arguments and
+    // assert the result was a Promise. That worked while the service read fixtures and
+    // broke the moment it read Postgres: `getRender` takes a revision uuid, the table
+    // still held `"7fK2mQxZ:1"`, and the test failed on an invalid-uuid error that said
+    // nothing about the property under test. Maintaining valid arguments for every
+    // function here would also make this file a second, worse integration suite.
+    //
+    // `AsyncFunction` is what Appendix C actually promises: every service function is
+    // already async, so M8 could swap the implementation without a caller changing shape.
+    expect(fn.constructor.name, name).toBe("AsyncFunction");
+  });
 });
 
 describe("viewer", () => {

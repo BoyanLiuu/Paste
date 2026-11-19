@@ -39,8 +39,17 @@ already gone wrong here — read it before assuming a surprising thing is a bug.
 - Highlighting is server-side only, and the HTML is stored. Shiki must never reach the
   browser bundle, and `no-inline-styles.spec.ts` guards the `style-src` claim that the
   strict CSP rests on.
-- `src/lib/server/prisma.ts` throws if imported in the browser. That guard is the thing
-  keeping `DATABASE_URL` out of a client payload; do not remove it to make an import work.
+- `src/lib/server/prisma.ts` imports `server-only`. That guard is the thing keeping
+  `DATABASE_URL` out of a client payload; do not remove it to make an import work.
+- **Never render on a read path.** N2 is "0 highlighter invocations on the read path". A
+  missing render is answered by the escaped fallback plus a banner; `POST /api/renders`
+  backfills it from cron. A lazy `if (missing) highlight()` in `getRender` is the one
+  change that breaks N2, and it looks like a bug fix.
+- **The 410 and the 404 on `/p/:id` come from `src/proxy.ts`, not the page.** Next gives a
+  page no status API beyond `notFound()`, and the route is partially prerendered so the
+  shell answers 200 first. The liveness rule therefore exists twice — `livenessOf` for
+  rendering, `pasteLiveness` for the status — and `expiry-on-read.spec.ts` asserts they
+  agree. Change one, change both.
 
 ### Conventions that are deliberate
 
@@ -57,3 +66,15 @@ already gone wrong here — read it before assuming a surprising thing is a bug.
 - pnpm build scripts are allowlisted in `pnpm-workspace.yaml` under `allowBuilds`. The key
   has moved twice across pnpm versions; a missing entry breaks the deploy, not the install.
 - A test must name the bug it catches, in a comment, or it should not exist.
+- **The test suite has a connection budget.** Supabase's session pooler allows 15 clients
+  and vitest runs a worker per file, so `maxWorkers: 4` and `DATABASE_POOL_MAX=1` live in
+  `vitest.config.mts`. Raising either brings back `(EMAXCONNSESSION) max clients reached`,
+  which presents as unrelated logic failures across the whole suite.
+- Database tests either roll back (`db-test-harness.ts`) or own a `t-<random>` user and
+  delete by its id (`create-test-harness.ts`). Never a bare `DELETE`, never `TRUNCATE`:
+  dev and production share this schema.
+- **Never build a Prisma `where` with object spreads.** Use an `AND` array. Three
+  conditions in `listPastes` contribute an `OR` — liveness, search, keyset seek — and a
+  spread silently keeps only the last, which already shipped a list of expired pastes.
+- Seed test pastes with `seedPastes`, which uses the real `newPasteId()`. Ids built from a
+  uuid slice contain `0`, which `isPasteId` rejects — the app would never issue them.

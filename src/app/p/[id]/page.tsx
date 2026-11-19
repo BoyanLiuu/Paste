@@ -6,9 +6,12 @@ import { AppShell } from "@/components/app-shell";
 import { PasteView } from "@/components/paste-view";
 import { TombstoneView } from "@/components/tombstone";
 import { livenessOf, tombstoneFor } from "@/lib/expiry/tombstone";
-import { PASTES } from "@/lib/fixtures";
-import { revisionKey } from "@/lib/render/keys";
-import { getPaste, getRender } from "@/lib/server/paste-service";
+import {
+  getForks,
+  getPaste,
+  getPasteMeta,
+  getRenderForPaste,
+} from "@/lib/server/paste-service";
 import { getViewer } from "@/lib/server/viewer";
 
 // GET /p/:id — the hot path (ux-14 – ux-27, ux-50, 52, 53, 54).
@@ -65,19 +68,26 @@ async function Content({ params }: { params: Promise<{ id: string }> }) {
   const liveness = livenessOf(paste);
 
   if (liveness.kind === "gone") {
-    // KNOWN GAP, closed in M8. Next has no API for a page to return 410 — there is
-    // notFound() for 404 and nothing for Gone — so this renders the receipt with a 200
-    // status. The content is right and the reader is not stuck, but a link checker
-    // sees a live page. /raw/:id and /dl/:id already answer a real 410, so the
-    // behaviour §6.3 depends on is demonstrable today; acceptance test 2 checks the
-    // page itself with `curl -i`, and that is M8's.
+    // The status is 410, set by the proxy rather than here.
+    //
+    // Next gives a page no way to do it: `notFound()` is the only status API, and the
+    // mechanism behind `forbidden()`/`unauthorized()` validates against a hardcoded
+    // `{401, 403, 404}`. The route is also partially prerendered, so even a rewrite
+    // carrying a status is answered by the shell's own 200 — which means this component
+    // deciding "gone" cannot influence the status line at all. `src/proxy.ts` makes the
+    // same determination before rendering starts and re-wraps this response.
+    //
+    // The determination is duplicated, so `expiry-on-read.spec.ts` asserts the two agree.
+    // Disagreement would mean a 410 serving content, or a 200 serving a tombstone.
     return <TombstoneView tombstone={tombstoneFor(paste, liveness.reason)} />;
   }
 
-  const stored = await getRender(
-    revisionKey(paste.id, paste.revisions.at(-1)!.no),
-  );
-  const forks = PASTES.filter((p) => p.forkedFrom === paste.id);
+  // In parallel: neither depends on the other, and serialising them would add a round
+  // trip to the hot path for no reason.
+  const [stored, forks] = await Promise.all([
+    getRenderForPaste(viewer, paste.id),
+    getForks(viewer, paste.id),
+  ]);
 
   return <PasteView paste={paste} renderedHtml={stored} forks={forks} />;
 }
@@ -98,12 +108,22 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // Declares the metadata request-time, for the same reason `Content` does.
+  //
+  // From M8 this reads the database, and Prisma touches the clock while decoding
+  // timestamps. Under `cacheComponents` any clock read during a prerender is an error, so
+  // the static shell was abandoned with "encountered the unstable value `new Date()`" on
+  // every view — and the route then re-rendered dynamically, which is why one page view
+  // issued two identical full queries. Silent except in the server log, and it made the
+  // duplicate read look like a caching failure rather than a retried render.
+  await connection();
+
   const { id } = await params;
-  const paste = await getPaste({ kind: "anon" }, id);
-  if (paste === null) return { title: "Not found — Paste" };
+  const meta = await getPasteMeta({ kind: "anon" }, id);
+  if (meta === null) return { title: "Not found — Paste" };
   return {
-    title: `${paste.title ?? `/p/${paste.id}`} — Paste`,
+    title: `${meta.title ?? `/p/${meta.id}`} — Paste`,
     // The body is attacker-supplied, so it never goes in a meta description.
-    description: `A ${paste.language} snippet, ${paste.lineCount} lines.`,
+    description: `A ${meta.language} snippet, ${meta.lineCount} lines.`,
   };
 }
