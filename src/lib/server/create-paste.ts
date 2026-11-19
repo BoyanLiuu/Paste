@@ -16,15 +16,22 @@
 
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import { resolveLanguage } from "@/lib/detect/ladder";
 import { expiresAt, purgeAfter } from "@/lib/expiry/retention";
 import { withFreshId } from "@/lib/ids";
 import { normalise } from "@/lib/normalise";
 import { highlight, THEME_NAME } from "@/lib/render/highlight";
-import { renderMode } from "@/lib/render/thresholds";
+import { renderMode, storageFor } from "@/lib/render/thresholds";
 import { PASTE_INCLUDE, toPaste } from "@/lib/server/map";
 import { prisma } from "@/lib/server/prisma";
 import { scan, worstTier } from "@/lib/secrets/scan";
+import {
+  putBody,
+  storageConfigured,
+  StorageNotConfigured,
+} from "@/lib/storage/body";
 import type { Finding, Paste, RetentionCode } from "@/lib/types";
 
 export interface CreateArgs {
@@ -101,6 +108,32 @@ export async function createPasteInDatabase(args: CreateArgs): Promise<Paste> {
   }
 
   // --- stage 7: one transaction
+  //
+  // The object, if there is one, is written BEFORE the transaction opens.
+  //
+  // Two orderings are possible and only one is safe. Insert the row first and upload
+  // after, and a failed upload leaves a revision pointing at an object that does not
+  // exist — which every read path answers as a missing body, i.e. indistinguishable from
+  // a purge. Upload first and fail to insert, and the object is orphaned with nothing
+  // pointing at it: wasted bytes, caught by the weekly orphan report in §6.4, and no
+  // reader ever sees a lie. The same reasoning as phase B's "delete the object before
+  // nulling the key", pointing the other way.
+  //
+  // The revision id is generated here rather than by the database, because the object key
+  // contains it and the upload has to happen first.
+  const revisionId = randomUUID();
+  let storageKey: string | null = null;
+
+  if (storageFor(byteSize) === "object") {
+    if (!storageConfigured()) {
+      // Loud, not a silent fallback to inline. An over-threshold body in a `text` column
+      // would work until it did not, and the failure would arrive as a Postgres row-size
+      // error on someone else's paste.
+      throw new StorageNotConfigured();
+    }
+    storageKey = await putBody(revisionId, body);
+  }
+
   const created = await withFreshId(async (id) => {
     const createdAt = new Date();
 
@@ -127,15 +160,18 @@ export async function createPasteInDatabase(args: CreateArgs): Promise<Paste> {
 
       const revision = await tx.revision.create({
         data: {
+          id: revisionId,
           pasteId: id,
           revisionNo: 1,
           byteSize,
           lineCount,
           sha256,
-          // M9 moves bodies over 512 KB to object storage. Until then the CHECK requires
-          // exactly one pointer, so an over-threshold body is stored inline rather than
-          // written with a storage_key pointing at nothing.
-          bodyText: body,
+          // Exactly one pointer, decided here and never changed. The M6 trigger permits
+          // only the purge as a body mutation, so a revision cannot later be migrated
+          // between inline text and an object — which is why the threshold is applied
+          // once, at insert, from the byte count.
+          bodyText: storageKey === null ? body : null,
+          storageKey,
           reason: "original",
           scanState: result.state,
           createdById: args.ownerId,

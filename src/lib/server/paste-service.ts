@@ -12,6 +12,8 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { liveWhere } from "@/lib/server/live-where";
+import { renderMode, TRUNCATE_LINES } from "@/lib/render/thresholds";
+import { getBody, storageConfigured } from "@/lib/storage/body";
 import { DEFAULT_THEME } from "@/lib/render/keys";
 import { PASTE_INCLUDE, toPaste } from "@/lib/server/map";
 import { prisma } from "@/lib/server/prisma";
@@ -48,7 +50,49 @@ export async function getPaste(
     include: PASTE_INCLUDE,
   });
 
-  return row === null ? null : toPaste(row);
+  if (row === null) return null;
+  return withStoredBody(toPaste(row), row.revisions.at(-1)?.storageKey ?? null);
+}
+
+/**
+ * Fill in `body` for a revision whose bytes live in an object (§6.2, §6.4).
+ *
+ * The mapper cannot do this: it is synchronous, and fetching an object is not. So the
+ * domain object comes back with `body: null` for an object-stored revision and this adds
+ * the text — truncated for display, because the alternative is shipping 20 MB through a
+ * React render to show someone the first screenful.
+ *
+ * A null body is still a legitimate outcome: the object is gone after a purge, and the
+ * read paths already answer that with a tombstone. A missing object on a live paste reads
+ * the same way, which is the cost of the create path writing the object first (see
+ * `create-paste.ts`) — an orphan is wasted bytes, a dangling pointer is a visible lie,
+ * and this is the direction that keeps the lie impossible.
+ */
+async function withStoredBody(
+  paste: Paste,
+  storageKey: string | null,
+): Promise<Paste> {
+  if (storageKey === null || !storageConfigured()) return paste;
+
+  // Deliberately not caught. `getBody` throws when the object cannot be read, and the
+  // request failing is the correct outcome: a live revision's object must exist, so a
+  // missing one is an anomaly. Swallowing it renders an empty `<pre>` and tells the
+  // reader the snippet is empty.
+  const body = await getBody(storageKey);
+
+  // The §6.2 ladder: above 2 MB a reader gets the first 500 lines and a banner naming the
+  // real total. `lineCount` and `byteSize` keep describing the whole thing, which is what
+  // the banner reads.
+  if (renderMode(paste.byteSize, paste.lineCount) === "truncated") {
+    const shown = body.split("\n").slice(0, TRUNCATE_LINES);
+    return {
+      ...paste,
+      body: `${shown.join("\n")}\n`,
+      bodyShown: shown.length,
+    };
+  }
+
+  return { ...paste, body, bodyShown: paste.lineCount };
 }
 
 /**
@@ -191,10 +235,20 @@ export async function getRaw(
   const row = await prisma.revision.findFirst({
     where: { pasteId: id },
     orderBy: { revisionNo: "desc" },
-    select: { bodyText: true },
+    select: { bodyText: true, storageKey: true },
   });
 
-  return row?.bodyText ?? null;
+  if (row === null) return null;
+  // The WHOLE body, never truncated. This is what `/raw` and `/dl` serve and what the copy
+  // button fetches, so a reader piping it into a file must get every byte — the 500-line
+  // display limit is a rendering decision and has no business here.
+  if (row.storageKey !== null) {
+    // Throws if the object cannot be read, for the same reason as above: /raw serving an
+    // empty file is a worse answer than /raw returning an error.
+    return storageConfigured() ? await getBody(row.storageKey) : null;
+  }
+
+  return row.bodyText;
 }
 
 export type ListFilter = "all" | "live" | "gone";

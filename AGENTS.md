@@ -25,6 +25,24 @@ already gone wrong here — read it before assuming a surprising thing is a bug.
 - `DIRECT_URL` keeps `?schema=paste`. Removing it points `_prisma_migrations` at `public`,
   where Nexdo's ledger already lives, and the two apps then invalidate each other.
 
+### Things the sweeper must keep doing
+
+- **Delete the object before nulling the `storage_key`.** Reversed, a crash leaves an
+  object in the bucket with nothing pointing at it, and Supabase Storage has no lifecycle
+  rules — nothing will ever clean it up. `sweep.spec.ts` asserts the key survives a failed
+  delete.
+- **Delete the render row too.** A purged paste that still holds its rendered HTML has
+  been hidden, not purged.
+- **Every step idempotent.** A killed invocation leaves a leased row that the next tick
+  re-claims, so each step runs again over work that is already done. Notably: do not
+  rewrite `purged_at` if it is already set, or the only record of when the bytes went is
+  replaced by the retry time.
+- **A revision never migrates between inline text and an object.** The M6 trigger permits
+  exactly one body mutation — the purge — so storage is decided once, at insert, from
+  `byte_size`. An inline-to-object `UPDATE` raises.
+- `orphans.sql` is **report-only** and deliberately not scheduled. A growing list is a bug
+  in the sweeper's ordering, not untidy storage; automatic deletion would hide the cause.
+
 ### Things that break the security model
 
 - **The scanner's rules must stay sorted by tier** (`src/lib/secrets/scan.ts`). The first
@@ -66,6 +84,13 @@ already gone wrong here — read it before assuming a surprising thing is a bug.
 - pnpm build scripts are allowlisted in `pnpm-workspace.yaml` under `allowBuilds`. The key
   has moved twice across pnpm versions; a missing entry breaks the deploy, not the install.
 - A test must name the bug it catches, in a comment, or it should not exist.
+- **Test files run one at a time** (`fileParallelism: false`). The sweeper is a global
+  mutating job, so it raced every other file that seeds a past-due paste. Re-enabling
+  parallelism brings back a one-in-five flake. The suite takes ~38 s; that is the price.
+- **Never read configuration at module scope.** `const BUDGET = Number(process.env.X)`
+  freezes the value at whichever cold start imported the module, so changing the variable
+  does nothing — and a test that sets it after the import silently gets the default. Read
+  env inside the handler.
 - **The test suite has a connection budget.** Supabase's session pooler allows 15 clients
   and vitest runs a worker per file, so `maxWorkers: 4` and `DATABASE_POOL_MAX=1` live in
   `vitest.config.mts`. Raising either brings back `(EMAXCONNSESSION) max clients reached`,

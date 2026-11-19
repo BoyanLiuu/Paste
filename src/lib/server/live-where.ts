@@ -16,6 +16,8 @@
 
 import "server-only";
 
+import { GONE_STATES } from "@/lib/expiry/liveness";
+
 /**
  * Pastes that would serve content at `now`.
  *
@@ -26,7 +28,10 @@ import "server-only";
  */
 export function liveWhere(now: Date) {
   return {
-    state: { notIn: ["purged", "expired", "redacted"] },
+    // Built from the shared list, so this predicate and `livenessFrom` cannot disagree
+    // about which states mean gone. They did: `redacted` was in this list and missing from
+    // the TypeScript check, so the list hid a paste the page still rendered.
+    state: { notIn: [...GONE_STATES] },
     OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
   };
 }

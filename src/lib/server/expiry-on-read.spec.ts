@@ -8,16 +8,18 @@
 // run every minute, and a late cron run becomes a content leak rather than a tidying
 // delay.
 //
-// There are now THREE expressions of this one rule, and that is the real risk this file
-// exists for:
+// Three call sites read this rule, and all three now delegate to one definition in
+// `@/lib/expiry/liveness`:
 //
-//   livenessOf          one paste, in the page, authoritative for what gets rendered
+//   livenessOf          one paste, in the page and the raw route, deciding what renders
 //   liveWhere           SQL, so a list of 40 000 is filtered by the database
 //   pasteLiveness       four columns, in the proxy, because only it can set the status
 //
-// Disagreement between any two is a 410 serving content, a 200 serving a tombstone, or a
-// list offering a paste the view page then refuses. So every case below is checked against
-// all three rather than against whichever one is convenient.
+// They were three separate implementations until M9, and two of them had drifted — see
+// that module. Disagreement between any two is a 410 serving content, a 200 serving a
+// tombstone, or a list offering a paste the view page then refuses. Every case below is
+// still checked against all three: sharing a definition is not proof that each call site
+// passes it the right columns.
 
 import { describe, expect, it } from "vitest";
 
@@ -59,6 +61,21 @@ const CASES = [
   {
     name: "purged",
     seed: { expiresInMinutes: -60, state: "purged" },
+    live: false,
+  },
+  {
+    // THE CASE THIS FILE WAS MISSING, and the one that let two M8 regressions through.
+    // A redaction purges the offending bytes from revision 1 and serves a cleaned revision
+    // 2 with a permanent notice, so `redacted` is a LIVE state. The proxy answered 410 for
+    // it — a 410 carrying a body — and the list filter hid it from the live tab.
+    name: "redacted with a future expiry still serves its cleaned revision",
+    seed: { state: "redacted", expiresInMinutes: 60 },
+    live: true,
+  },
+  {
+    // And a redaction does not exempt a paste from its own expiry.
+    name: "redacted and lapsed is gone like anything else",
+    seed: { state: "redacted", expiresInMinutes: -1 },
     live: false,
   },
   {

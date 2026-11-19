@@ -32,6 +32,25 @@ export default defineConfig({
     // alone. A config key that is ignored rather than rejected is the worst kind to get
     // wrong, because the thing it was protecting still looks protected.
     maxWorkers: 4,
+
+    // FILES RUN ONE AT A TIME, and this is a correctness setting rather than a tuning one.
+    //
+    // The sweeper is a global mutating job: phase A expires every past-due paste in the
+    // database, which is what a cron job should do. Vitest runs one worker per file in
+    // parallel, so the sweeper's tests raced every other file that seeds a past-due paste
+    // to observe something about it — the sweeper expired other tests' fixtures, and its
+    // own summary counters (`expired`, and `more`, which reports whether ANY past-due row
+    // remains anywhere) counted rows it had never been told about.
+    //
+    // Scoping assertions to one owner fixes most of that and was done where it applies.
+    // It cannot fix `more`, which is global by definition and is the flag that
+    // distinguishes "finished" from "ran out of time" — the thing most worth testing
+    // about a resumable job.
+    //
+    // Cost: the suite goes from ~10 s to ~38 s. Worth it. A suite that fails one run in
+    // five teaches everyone to re-run it, and then it is not a suite.
+    fileParallelism: false,
+
     env: {
       DATABASE_POOL_MAX: "1",
     },

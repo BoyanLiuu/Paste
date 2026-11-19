@@ -4,43 +4,27 @@
 // gone on purpose". A human reading a two-year-old incident doc, a link checker and a
 // crawler all need that difference and only one of them can ask (§6.3).
 
+import { livenessFrom, type Liveness } from "@/lib/expiry/liveness";
 import type { Paste } from "@/lib/types";
 
-export type Liveness =
-  /** Serve the content. */
-  | { kind: "live" }
-  /** 410 with a receipt. The bytes may or may not still exist; either way the reader
-   *  gets the same shape of answer. */
-  | { kind: "gone"; reason: "expired" | "purged" | "removed" };
+export type { Liveness } from "@/lib/expiry/liveness";
 
 /**
- * Decides what a reader gets, recomputing expiry rather than trusting `state`.
+ * Decides what a reader gets, for one domain paste.
  *
- * This is the authoritative check (§6.3). The sweeper converges `state` on its own
- * schedule, so a paste whose `expires_at` has passed must answer 410 even while the
- * row still says "live" — which is exactly what lets the cron run daily instead of
- * every minute.
+ * A thin wrapper over `livenessFrom`, which is the single definition shared with the
+ * proxy's status decision and the SQL list filter. It used to be its own implementation
+ * and omitted `state = 'redacted'`, so a redacted paste rendered its content under the
+ * proxy's 410 — see `@/lib/expiry/liveness` for the whole story.
  */
 export function livenessOf(paste: Paste, now = Date.now()): Liveness {
-  if (paste.removedBy !== null) return { kind: "gone", reason: "removed" };
-  if (paste.state === "purged") return { kind: "gone", reason: "purged" };
-
-  const lapsed = paste.expiresAt !== null && Date.parse(paste.expiresAt) <= now;
-
-  if (lapsed || paste.state === "expired") {
-    // Past the purge date the bytes are gone too, whatever the sweeper has got to.
-    const purged =
-      paste.purgeAfter !== null && Date.parse(paste.purgeAfter) <= now;
-    return { kind: "gone", reason: purged ? "purged" : "expired" };
-  }
-
-  return { kind: "live" };
+  return livenessFrom(paste, now);
 }
 
 /** Everything a reader of the citing document needs in order not to be stuck. */
 export interface Tombstone {
   id: string;
-  reason: "expired" | "purged" | "removed";
+  reason: Extract<Liveness, { kind: "gone" }>["reason"];
   owner: string;
   createdAt: string;
   expiresAt: string | null;
@@ -58,7 +42,7 @@ export interface Tombstone {
 
 export function tombstoneFor(
   paste: Paste,
-  reason: "expired" | "purged" | "removed",
+  reason: Tombstone["reason"],
 ): Tombstone {
   const original = paste.revisions[0];
   return {
@@ -73,6 +57,8 @@ export function tombstoneFor(
     lineCount: original.lineCount,
     sha256: original.sha256,
     removedBy: paste.removedBy,
+    // A redaction replaces the body with a marker rather than destroying the row, so
+    // unlike a purge the original bytes are genuinely gone while a newer revision exists.
     bytesGone: reason !== "expired",
   };
 }

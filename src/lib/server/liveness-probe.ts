@@ -13,6 +13,7 @@
 
 import "server-only";
 
+import { livenessFrom } from "@/lib/expiry/liveness";
 import { prisma } from "@/lib/server/prisma";
 
 export type Verdict = "live" | "gone" | "unknown";
@@ -104,7 +105,7 @@ export async function pasteLiveness(
   return probe;
 }
 
-/** The same rule as `livenessOf`, over the four columns this reads. */
+/** Delegates to the one rule, so the status code and the rendered page cannot disagree. */
 function verdictFor(
   row: {
     state: string;
@@ -114,10 +115,5 @@ function verdictFor(
   now: number,
 ): Verdict {
   if (row === null) return "unknown";
-  if (row.state === "purged" || row.state === "redacted") return "gone";
-
-  const lapsed = row.expiresAt !== null && row.expiresAt.getTime() <= now;
-  if (lapsed || row.state === "expired") return "gone";
-
-  return "live";
+  return livenessFrom(row, now).kind === "live" ? "live" : "gone";
 }

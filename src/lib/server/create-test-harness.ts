@@ -83,9 +83,26 @@ export async function withTestOwner<T>(
  */
 async function cleanUp(userId: string): Promise<void> {
   try {
+    // The owner's paste ids, read BEFORE anything is deleted. Audit rows are found by
+    // subject as well as by actor, and once the pastes are gone neither key exists.
+    const pastes = await prisma.paste.findMany({
+      where: { ownerId: userId },
+      select: { id: true },
+    });
+
     // Audit first — `actor_id` is SET NULL on user delete, so after the user is gone
-    // these rows are unreachable by any key the test still holds.
+    // those rows are unreachable by any key the test still holds.
     await prisma.auditLog.deleteMany({ where: { actorId: userId } });
+
+    // And by subject, because THE SWEEPER HAS NO ACTOR. Its `paste.purged` rows are
+    // written with `actor_id` null, so deleting by actor never matched them and every
+    // sweeper test left one behind permanently — five of them after a single clean run,
+    // which is how this was found.
+    if (pastes.length > 0) {
+      await prisma.auditLog.deleteMany({
+        where: { subjectId: { in: pastes.map((p) => p.id) } },
+      });
+    }
 
     // Then the pastes, which cascade to revisions, renders, findings and views.
     //
@@ -115,6 +132,15 @@ export interface SeedPaste {
   state?: string;
   body?: string;
   id?: string;
+  /**
+   * Store the body as an object key instead of inline text.
+   *
+   * Set AT INSERT, because it cannot be set afterwards: the M6 trigger permits exactly one
+   * body mutation — the purge — so moving a revision from `body_text` to `storage_key`
+   * raises "may only be purged, not rewritten". Which is correct, and is why the create
+   * path decides storage from `byte_size` once and never migrates.
+   */
+  storageKey?: string;
 }
 
 /**
@@ -193,7 +219,9 @@ export async function seedPastes(
       byteSize: new TextEncoder().encode(body).length,
       lineCount: body.replace(/\n$/, "").split("\n").length,
       sha256: "a".repeat(64),
-      bodyText: body,
+      // Exactly one body pointer, which the M6 CHECK enforces.
+      bodyText: seed.storageKey === undefined ? body : null,
+      storageKey: seed.storageKey ?? null,
       reason: "original",
       scanState: "complete",
       createdById: userId,

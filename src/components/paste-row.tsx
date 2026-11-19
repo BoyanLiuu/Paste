@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { livenessOf } from "@/lib/expiry/tombstone";
+import { livenessOf, type Tombstone } from "@/lib/expiry/tombstone";
 import { formatBytes, formatCount, formatDate } from "@/lib/format";
 import { expiryPhrase } from "@/lib/relative-time";
 import type { Paste } from "@/lib/types";
@@ -16,10 +16,7 @@ import type { Paste } from "@/lib/types";
  *
  *  The date is the useful half: someone scanning a list of gone pastes is asking when
  *  each stopped answering. A bare "Purged" drops exactly that. */
-function goneLabel(
-  paste: Paste,
-  reason: "expired" | "purged" | "removed",
-): string {
+function goneLabel(paste: Paste, reason: Tombstone["reason"]): string {
   switch (reason) {
     case "removed":
       return `Removed ${formatDate(paste.removedBy!.at)}`;
