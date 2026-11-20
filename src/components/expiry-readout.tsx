@@ -5,11 +5,18 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { formatBytes, formatCount, formatDate, formatTime } from "@/lib/format";
 import { PURGE_GAP_MS, RETENTION } from "@/lib/expiry/retention";
 import { HIGHLIGHT_LINES } from "@/lib/render/thresholds";
+import { RULES } from "@/lib/secrets/rules.generated";
 import type { RetentionCode } from "@/lib/types";
 
 // The "Before it gets a link" panel. Retention is the most consequential control in
 // the product and the one users ignore, so the animation is on the *consequence* — the
 // date this link stops answering — and never on the select itself (Appendix E).
+
+/** COUNTED, NOT WRITTEN DOWN. Appendix H: a number typed into copy goes stale silently,
+ *  which is exactly how the line at the foot of this panel came to claim the scanner was
+ *  not wired up for six milestones after it was. `compile-secret-rules.mts` regenerates
+ *  this array, so the panel reads whatever it produced. */
+const RULE_COUNT = RULES.length;
 
 interface Props {
   retention: RetentionCode;
@@ -33,7 +40,7 @@ export function ExpiryReadout({
   const purgeAt = expiresAt === null ? null : expiresAt + PURGE_GAP_MS;
 
   return (
-    <aside className="bg-card border-rule flex flex-col gap-4 rounded-lg border p-6">
+    <aside className="bg-card border-rule flex flex-col gap-4 self-start rounded-lg border p-6">
       <h2 className="text-md">Before it gets a link</h2>
 
       <div className="flex flex-col gap-1">
@@ -97,9 +104,14 @@ export function ExpiryReadout({
         />
       </dl>
 
+      {/* THIS LINE SAID "sample rules. Not connected to POST /api/scan yet" until
+          19 Nov 2026 — true in M3 when the panel was built, false from M6 when the
+          compiled ruleset landed, and still on the screen six milestones later. The
+          scan in this page is the real one; the server runs it again inside the
+          insert transaction, and that second run is the enforcement. */}
       <p className="text-muted-foreground text-xs">
-        Checked in this page with sample rules. Not connected to{" "}
-        <span className="font-mono">POST /api/scan</span> yet.
+        {formatCount(RULE_COUNT)} rules, the same set the server re-runs before
+        it writes anything.
       </p>
     </aside>
   );

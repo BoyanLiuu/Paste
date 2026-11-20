@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-19T00:00:00.000Z",
+  "title": "Design System: Paste",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "oklch(17% 0.008 250)",
+        "tonalRamp": ["oklch(13.5% 0.007 250)", "oklch(17% 0.008 250)", "oklch(21% 0.009 250)", "oklch(31% 0.01 250)", "oklch(42% 0.012 250)", "oklch(60% 0.01 250)", "oklch(83% 0.008 250)", "oklch(95% 0.005 250)"]
+      },
+      "paper-2": {
+        "role": "neutral",
+        "displayName": "Raised Paper",
+        "canonical": "oklch(21% 0.009 250)",
+        "tonalRamp": ["oklch(13.5% 0.007 250)", "oklch(17% 0.008 250)", "oklch(21% 0.009 250)", "oklch(31% 0.01 250)", "oklch(42% 0.012 250)", "oklch(60% 0.01 250)", "oklch(83% 0.008 250)", "oklch(95% 0.005 250)"]
+      },
+      "paper-3": {
+        "role": "neutral",
+        "displayName": "Recessed Paper",
+        "canonical": "oklch(13.5% 0.007 250)",
+        "tonalRamp": ["oklch(11% 0.005 250)", "oklch(13.5% 0.007 250)", "oklch(17% 0.008 250)", "oklch(21% 0.009 250)", "oklch(31% 0.01 250)", "oklch(42% 0.012 250)", "oklch(71% 0.01 250)", "oklch(95% 0.005 250)"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "oklch(95% 0.005 250)",
+        "tonalRamp": ["oklch(17% 0.005 250)", "oklch(28% 0.006 250)", "oklch(40% 0.007 250)", "oklch(52% 0.008 250)", "oklch(64% 0.008 250)", "oklch(76% 0.007 250)", "oklch(88% 0.006 250)", "oklch(97% 0.003 250)"]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Prose Ink",
+        "canonical": "oklch(83% 0.008 250)",
+        "tonalRamp": ["oklch(17% 0.005 250)", "oklch(28% 0.006 250)", "oklch(40% 0.008 250)", "oklch(52% 0.009 250)", "oklch(64% 0.009 250)", "oklch(76% 0.008 250)", "oklch(83% 0.008 250)", "oklch(95% 0.005 250)"]
+      },
+      "muted-foreground": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "oklch(71% 0.01 250)",
+        "tonalRamp": ["oklch(17% 0.006 250)", "oklch(27% 0.008 250)", "oklch(38% 0.009 250)", "oklch(49% 0.01 250)", "oklch(60% 0.01 250)", "oklch(71% 0.01 250)", "oklch(84% 0.008 250)", "oklch(95% 0.005 250)"]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Hairline Rule",
+        "canonical": "oklch(31% 0.01 250)",
+        "tonalRamp": ["oklch(15% 0.006 250)", "oklch(21% 0.008 250)", "oklch(31% 0.01 250)", "oklch(42% 0.012 250)", "oklch(54% 0.012 250)", "oklch(66% 0.011 250)", "oklch(80% 0.009 250)", "oklch(93% 0.005 250)"]
+      },
+      "rule-2": {
+        "role": "neutral",
+        "displayName": "Emphasised Rule",
+        "canonical": "oklch(42% 0.012 250)",
+        "tonalRamp": ["oklch(15% 0.006 250)", "oklch(21% 0.008 250)", "oklch(31% 0.01 250)", "oklch(42% 0.012 250)", "oklch(54% 0.012 250)", "oklch(66% 0.011 250)", "oklch(80% 0.009 250)", "oklch(93% 0.005 250)"]
+      },
+      "brand": {
+        "role": "primary",
+        "displayName": "Signal Amber",
+        "canonical": "oklch(82% 0.15 80)",
+        "tonalRamp": ["oklch(18% 0.04 80)", "oklch(29% 0.05 80)", "oklch(40% 0.08 80)", "oklch(52% 0.11 80)", "oklch(64% 0.14 80)", "oklch(74% 0.15 80)", "oklch(82% 0.15 80)", "oklch(93% 0.07 80)"]
+      },
+      "brand-ink": {
+        "role": "primary",
+        "displayName": "Amber Ink",
+        "canonical": "oklch(18% 0.04 75)",
+        "tonalRamp": ["oklch(14% 0.03 75)", "oklch(18% 0.04 75)", "oklch(29% 0.05 75)", "oklch(42% 0.08 75)", "oklch(56% 0.12 75)", "oklch(70% 0.14 75)", "oklch(82% 0.15 75)", "oklch(93% 0.07 75)"]
+      },
+      "brand-soft": {
+        "role": "primary",
+        "displayName": "Amber Wash",
+        "canonical": "oklch(29% 0.05 80)",
+        "tonalRamp": ["oklch(18% 0.04 80)", "oklch(29% 0.05 80)", "oklch(40% 0.08 80)", "oklch(52% 0.11 80)", "oklch(64% 0.14 80)", "oklch(74% 0.15 80)", "oklch(82% 0.15 80)", "oklch(93% 0.07 80)"]
+      },
+      "bad": {
+        "role": "secondary",
+        "displayName": "Refusal Red",
+        "canonical": "oklch(70% 0.17 25)",
+        "tonalRamp": ["oklch(17% 0.03 25)", "oklch(24.5% 0.035 25)", "oklch(35% 0.08 25)", "oklch(46% 0.12 25)", "oklch(57% 0.16 25)", "oklch(70% 0.17 25)", "oklch(82% 0.11 25)", "oklch(93% 0.05 25)"]
+      },
+      "bad-soft": {
+        "role": "secondary",
+        "displayName": "Refusal Wash",
+        "canonical": "oklch(24.5% 0.035 25)",
+        "tonalRamp": ["oklch(17% 0.03 25)", "oklch(24.5% 0.035 25)", "oklch(35% 0.08 25)", "oklch(46% 0.12 25)", "oklch(57% 0.16 25)", "oklch(70% 0.17 25)", "oklch(82% 0.11 25)", "oklch(93% 0.05 25)"]
+      },
+      "ok": {
+        "role": "tertiary",
+        "displayName": "Clean Green",
+        "canonical": "oklch(76% 0.15 150)",
+        "tonalRamp": ["oklch(17% 0.025 150)", "oklch(24.5% 0.03 150)", "oklch(35% 0.07 150)", "oklch(46% 0.1 150)", "oklch(58% 0.13 150)", "oklch(68% 0.15 150)", "oklch(76% 0.15 150)", "oklch(92% 0.06 150)"]
+      },
+      "ok-soft": {
+        "role": "tertiary",
+        "displayName": "Clean Wash",
+        "canonical": "oklch(24.5% 0.03 150)",
+        "tonalRamp": ["oklch(17% 0.025 150)", "oklch(24.5% 0.03 150)", "oklch(35% 0.07 150)", "oklch(46% 0.1 150)", "oklch(58% 0.13 150)", "oklch(68% 0.15 150)", "oklch(76% 0.15 150)", "oklch(92% 0.06 150)"]
+      },
+      "cool": {
+        "role": "tertiary",
+        "displayName": "Figure Blue",
+        "canonical": "oklch(77% 0.12 245)",
+        "tonalRamp": ["oklch(18% 0.03 245)", "oklch(29% 0.05 245)", "oklch(39% 0.08 245)", "oklch(50% 0.11 245)", "oklch(61% 0.13 245)", "oklch(70% 0.13 245)", "oklch(77% 0.12 245)", "oklch(93% 0.05 245)"]
+      },
+      "cool-soft": {
+        "role": "tertiary",
+        "displayName": "Figure Wash",
+        "canonical": "oklch(29% 0.05 245)",
+        "tonalRamp": ["oklch(18% 0.03 245)", "oklch(29% 0.05 245)", "oklch(39% 0.08 245)", "oklch(50% 0.11 245)", "oklch(61% 0.13 245)", "oklch(70% 0.13 245)", "oklch(77% 0.12 245)", "oklch(93% 0.05 245)"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "The h1 on every route: tombstone headline, page title, save confirmation. Max 20ch, balanced wrap." },
+      "headline": { "displayName": "Headline", "purpose": "h2 — section and panel headings. Max 30ch." },
+      "title": { "displayName": "Title", "purpose": "h3 — the smallest named heading. Max 40ch." },
+      "body": { "displayName": "Body", "purpose": "Prose in --ink-2, held to a 62-70ch measure." },
+      "label": { "displayName": "Label", "purpose": "Captions, figure labels, footnotes in muted ink; 0.14em tracking when uppercase." },
+      "outlier": { "displayName": "Outlier Mono", "purpose": "Machine-written values only: ids, URLs, SHA-256, dates, byte counts, line/column coordinates, retention terms, code bodies." }
+    },
+    "shadows": [
+      { "name": "none", "value": "none", "purpose": "The system has no elevation shadow. Depth comes from the three paper tiers plus 1px --rule hairlines." },
+      { "name": "tab-underline-inset", "value": "inset 0 -2px 0 0 var(--brand)", "purpose": "The only box-shadow in the build: a 2px inset brand band marking the loaded sample tab. A border substitute, not elevation." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "The only easing token. The prototype's ease-in and ease-in-out were deliberately not ported." },
+      { "name": "dur-micro", "value": "120ms", "purpose": "Opacity crossfades: the expiry date, the live scan badge." },
+      { "name": "dur-short", "value": "180ms", "purpose": "A findings panel expanding from zero height; a refusal receipt fading in." },
+      { "name": "line-highlight", "value": "90ms background-color", "purpose": "The view page's only motion, CSS only - colour, never layout." },
+      { "name": "save-receipt-carveout", "value": "900ms cubic-bezier(0.22, 1, 0.36, 1), 2rem rise and fade", "purpose": "The single documented exception to the 90-200ms budget: one gesture for one irreversible event that just produced a permanent address." },
+      { "name": "reduced-motion", "value": "@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important } }", "purpose": "Global collapse, near-zero rather than none so Radix exit animations still fire animationend and unmount." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "40rem (gutter drops to 16px)" },
+      { "name": "md", "value": "48rem" },
+      { "name": "lg", "value": "64rem (two-column grids engage)" },
+      { "name": "gutter-step", "value": "60rem (gutter drops to 24px)" },
+      { "name": "container", "value": "1440px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one amber-filled action in a region: Save, View paste, Create a new paste.",
+      "html": "<button class=\"ds-btn-primary\">View paste</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; gap: 6px; border: 1px solid transparent; border-radius: var(--radius-lg, 10px); background: var(--brand, oklch(82% 0.15 80)); color: var(--brand-ink, oklch(18% 0.04 75)); font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif); font-size: 0.875rem; font-weight: 500; white-space: nowrap; transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-btn-primary:hover { background: color-mix(in oklch, var(--brand, oklch(82% 0.15 80)) 80%, transparent); } .ds-btn-primary:focus-visible { outline: none; border-color: var(--brand, oklch(82% 0.15 80)); box-shadow: 0 0 0 3px color-mix(in oklch, var(--brand, oklch(82% 0.15 80)) 50%, transparent); } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "The secondary action beside a primary: Edit it myself, Open a sample.",
+      "html": "<button class=\"ds-btn-outline\">Edit it myself</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; border: 1px solid var(--rule, oklch(31% 0.01 250)); border-radius: var(--radius-lg, 10px); background: color-mix(in oklch, var(--rule, oklch(31% 0.01 250)) 30%, transparent); color: var(--ink, oklch(95% 0.005 250)); font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif); font-size: 0.875rem; font-weight: 500; transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-btn-outline:hover { background: var(--paper-2, oklch(21% 0.009 250)); } .ds-btn-outline:focus-visible { outline: none; border-color: var(--brand, oklch(82% 0.15 80)); box-shadow: 0 0 0 3px color-mix(in oklch, var(--brand, oklch(82% 0.15 80)) 50%, transparent); } .ds-btn-outline:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "An irreversible moderator action. Red text on a red wash, never a solid red fill.",
+      "html": "<button class=\"ds-btn-destructive\">Destroy the bytes</button>",
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; justify-content: center; height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-lg, 10px); background: color-mix(in oklch, var(--bad, oklch(70% 0.17 25)) 20%, transparent); color: var(--bad, oklch(70% 0.17 25)); font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif); font-size: 0.875rem; font-weight: 500; transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-btn-destructive:hover { background: color-mix(in oklch, var(--bad, oklch(70% 0.17 25)) 30%, transparent); } .ds-btn-destructive:focus-visible { outline: none; border-color: color-mix(in oklch, var(--bad, oklch(70% 0.17 25)) 40%, transparent); box-shadow: 0 0 0 3px color-mix(in oklch, var(--bad, oklch(70% 0.17 25)) 20%, transparent); }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "The standard text field: hairline border on a near-transparent ground, focus changes colour only.",
+      "html": "<label class=\"ds-field-label\" for=\"ds-field-title\">Title <span>(optional)</span></label><input class=\"ds-field\" id=\"ds-field-title\" placeholder=\"Untitled\" />",
+      "css": ".ds-field-label { display: block; margin-bottom: 8px; font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif); font-size: 0.875rem; color: var(--ink, oklch(95% 0.005 250)); } .ds-field-label span { color: var(--muted-foreground, oklch(71% 0.01 250)); } .ds-field { display: block; width: 100%; height: 32px; padding: 4px 10px; border: 1px solid var(--rule, oklch(31% 0.01 250)); border-radius: var(--radius-lg, 10px); background: color-mix(in oklch, var(--rule, oklch(31% 0.01 250)) 30%, transparent); color: var(--ink, oklch(95% 0.005 250)); font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif); font-size: 0.875rem; outline: none; transition: color 180ms cubic-bezier(0.16, 1, 0.3, 1), border-color 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-field::placeholder { color: var(--muted-foreground, oklch(71% 0.01 250)); } .ds-field:focus-visible { border-color: var(--brand, oklch(82% 0.15 80)); box-shadow: 0 0 0 3px color-mix(in oklch, var(--brand, oklch(82% 0.15 80)) 50%, transparent); }"
+    },
+    {
+      "name": "Code Textarea",
+      "kind": "input",
+      "refersTo": "textarea-code",
+      "description": "The paste body field: the standard field in Outlier Mono, fixed field-sizing so a huge paste cannot stretch the page.",
+      "html": "<textarea class=\"ds-textarea-code\" rows=\"4\">aws_access_key_id = AKIA2E0A8F3B5C1D9E7G</textarea>",
+      "css": ".ds-textarea-code { display: block; width: 100%; min-height: 64px; padding: 8px 10px; border: 1px solid var(--rule, oklch(31% 0.01 250)); border-radius: var(--radius-lg, 10px); background: color-mix(in oklch, var(--rule, oklch(31% 0.01 250)) 30%, transparent); color: var(--ink, oklch(95% 0.005 250)); font-family: var(--font-outlier, ui-monospace, monospace); font-size: 0.875rem; line-height: 1.6; resize: vertical; field-sizing: fixed; outline: none; transition: border-color 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-textarea-code:focus-visible { border-color: var(--brand, oklch(82% 0.15 80)); box-shadow: 0 0 0 3px color-mix(in oklch, var(--brand, oklch(82% 0.15 80)) 50%, transparent); }"
+    },
+    {
+      "name": "Fact Row Panel",
+      "kind": "card",
+      "refersTo": "pane",
+      "description": "The house pattern: a raised-paper pane holding hairline fact rows, label left in muted ink and machine value right in mono with tabular figures.",
+      "html": "<section class=\"ds-pane\"><h2 class=\"ds-pane-title\">Before it gets a link</h2><p class=\"ds-pane-caption\">Expires</p><p class=\"ds-pane-value\">17 Dec 2026</p><dl class=\"ds-facts\"><div class=\"ds-fact\"><dt>Size</dt><dd>4.2 KB &middot; 118 lines</dd></div><div class=\"ds-fact\"><dt>Highlighting</dt><dd>On up to 2,000 lines</dd></div><div class=\"ds-fact\"><dt>SHA-256</dt><dd class=\"ds-mono\">9f2a4c18&hellip;b71e</dd></div></dl></section>",
+      "css": ".ds-pane { display: flex; flex-direction: column; gap: 16px; padding: 24px; border: 1px solid var(--rule, oklch(31% 0.01 250)); border-radius: var(--radius-lg, 10px); background: var(--paper-2, oklch(21% 0.009 250)); color: var(--ink, oklch(95% 0.005 250)); font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif); } .ds-pane-title { margin: 0; font-size: 1rem; font-weight: 500; letter-spacing: -0.03em; line-height: 1.2; } .ds-pane-caption { margin: 0; font-family: var(--font-outlier, ui-monospace, monospace); font-size: 0.75rem; color: var(--muted-foreground, oklch(71% 0.01 250)); } .ds-pane-value { margin: 0; font-family: var(--font-outlier, ui-monospace, monospace); font-size: 1.728rem; font-variant-numeric: tabular-nums; } .ds-facts { display: flex; flex-direction: column; margin: 0; padding-top: 8px; border-top: 1px solid var(--rule, oklch(31% 0.01 250)); font-size: 0.875rem; } .ds-fact { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--rule, oklch(31% 0.01 250)); } .ds-fact:last-child { border-bottom: 0; } .ds-fact dt { color: var(--muted-foreground, oklch(71% 0.01 250)); } .ds-fact dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; } .ds-mono { font-family: var(--font-outlier, ui-monospace, monospace); font-size: 0.75rem; }"
+    },
+    {
+      "name": "Refusal Panel",
+      "kind": "custom",
+      "refersTo": "pane-refusal",
+      "description": "What a blocked create looks like: a red-bordered wash pane naming the line and column, with the way out offered as buttons.",
+      "html": "<section class=\"ds-refusal\"><div class=\"ds-refusal-head\"><h2>This cannot be saved</h2><span class=\"ds-badge-destructive\">tier 1</span></div><p class=\"ds-refusal-detail\">A provider-issued credential is a hard block. Nothing is written in the meantime &mdash; this paste has no URL and never had one.</p><div class=\"ds-finding\"><span class=\"ds-finding-at\">line 12, col 21</span><span>AWS access key id</span><span class=\"ds-finding-preview\">AKIA&hellip;9E7G</span></div></section>",
+      "css": ".ds-refusal { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid color-mix(in oklch, var(--bad, oklch(70% 0.17 25)) 50%, transparent); border-radius: var(--radius-lg, 10px); background: color-mix(in oklch, var(--bad-soft, oklch(24.5% 0.035 25)) 30%, transparent); font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif); color: var(--ink, oklch(95% 0.005 250)); } .ds-refusal-head { display: flex; align-items: center; gap: 12px; } .ds-refusal-head h2 { margin: 0; font-size: 1rem; font-weight: 500; letter-spacing: -0.03em; } .ds-refusal-detail { margin: 0; max-width: 62ch; font-size: 0.875rem; color: var(--ink-2, oklch(83% 0.008 250)); line-height: 1.55; } .ds-badge-destructive { display: inline-flex; align-items: center; height: 20px; padding: 2px 8px; border-radius: 26px; background: color-mix(in oklch, var(--bad, oklch(70% 0.17 25)) 20%, transparent); color: var(--bad, oklch(70% 0.17 25)); font-size: 0.75rem; font-weight: 500; } .ds-finding { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 8px 12px; border: 1px solid var(--rule, oklch(31% 0.01 250)); border-radius: var(--radius-md, 8px); background: var(--paper-2, oklch(21% 0.009 250)); font-size: 0.875rem; } .ds-finding-at { font-family: var(--font-outlier, ui-monospace, monospace); font-size: 0.75rem; font-variant-numeric: tabular-nums; color: var(--cool, oklch(77% 0.12 245)); } .ds-finding-preview { font-family: var(--font-outlier, ui-monospace, monospace); font-size: 0.75rem; color: var(--muted-foreground, oklch(71% 0.01 250)); }"
+    },
+    {
+      "name": "Shell Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link-active",
+      "description": "The 56px hairline-bottomed header: wordmark, text-sm links, active link as a raised-paper pill.",
+      "html": "<header class=\"ds-nav\"><a class=\"ds-nav-brand\" href=\"#\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\" width=\"20\" height=\"20\"><path d=\"M4 8.5h16\" stroke=\"currentColor\" stroke-width=\"1.8\" stroke-linecap=\"round\"/><circle cx=\"7\" cy=\"15.5\" r=\"1.6\" fill=\"currentColor\"/><circle cx=\"12\" cy=\"15.5\" r=\"1.6\" fill=\"currentColor\"/><circle cx=\"17\" cy=\"15.5\" r=\"1.6\" fill=\"currentColor\"/></svg>Paste</a><nav><a class=\"ds-nav-link ds-nav-link-active\" href=\"#\" aria-current=\"page\">New paste</a><a class=\"ds-nav-link\" href=\"#\">My pastes</a></nav><span class=\"ds-nav-account\">Signed in as <span class=\"ds-nav-user\">boyan</span></span></header>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 24px; height: 56px; padding: 0 24px; border-bottom: 1px solid var(--rule, oklch(31% 0.01 250)); background: var(--paper, oklch(17% 0.008 250)); color: var(--ink, oklch(95% 0.005 250)); font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif); } .ds-nav-brand { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: none; font-weight: 500; } .ds-nav nav { display: flex; align-items: center; gap: 4px; font-size: 0.875rem; } .ds-nav-link { padding: 6px 12px; border: 1px solid transparent; border-radius: var(--radius-md, 8px); color: var(--muted-foreground, oklch(71% 0.01 250)); text-decoration: none; transition: color 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-nav-link:hover { color: var(--ink, oklch(95% 0.005 250)); } .ds-nav-link-active { border-color: var(--rule, oklch(31% 0.01 250)); background: var(--paper-2, oklch(21% 0.009 250)); color: var(--ink, oklch(95% 0.005 250)); } .ds-nav-account { margin-left: auto; font-size: 0.875rem; color: var(--muted-foreground, oklch(71% 0.01 250)); } .ds-nav-user { color: var(--brand, oklch(82% 0.15 80)); }"
+    },
+    {
+      "name": "State Badge",
+      "kind": "chip",
+      "refersTo": "badge-default",
+      "description": "A 20px capsule. Amber fill for a state that is true now, raised paper for a state that is over, hairline outline for a neutral marker.",
+      "html": "<span class=\"ds-badge\">Redacted</span> <span class=\"ds-badge-secondary\">Purged 9 Oct</span> <span class=\"ds-badge-outline\">Removal asked</span>",
+      "css": ".ds-badge, .ds-badge-secondary, .ds-badge-outline { display: inline-flex; align-items: center; justify-content: center; height: 20px; padding: 2px 8px; border: 1px solid transparent; border-radius: 26px; font-family: var(--font-display, ui-sans-serif, system-ui, sans-serif); font-size: 0.75rem; font-weight: 500; white-space: nowrap; transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-badge { background: var(--brand, oklch(82% 0.15 80)); color: var(--brand-ink, oklch(18% 0.04 75)); } .ds-badge-secondary { background: var(--paper-2, oklch(21% 0.009 250)); color: var(--ink, oklch(95% 0.005 250)); } .ds-badge-outline { border-color: var(--rule, oklch(31% 0.01 250)); color: var(--ink, oklch(95% 0.005 250)); } .ds-badge-outline:hover { background: var(--paper-2, oklch(21% 0.009 250)); }"
+    },
+    {
+      "name": "Code Body",
+      "kind": "custom",
+      "refersTo": "textarea-code",
+      "description": "The rendered paste: a recessed band in mono, line numbers as a CSS counter so a select-all copies only the text, and the highlighted line washed in amber.",
+      "html": "<div class=\"ds-code\" data-numbered=\"true\"><pre><code><span class=\"ds-line\">def main():</span>\n<span class=\"ds-line ds-line-hl\">    token = os.environ[\"API_TOKEN\"]</span>\n<span class=\"ds-line\">    return token</span></code></pre></div>",
+      "css": ".ds-code { counter-reset: line; overflow-x: auto; tab-size: 4; border: 1px solid var(--rule, oklch(31% 0.01 250)); border-radius: var(--radius-lg, 10px); overflow: hidden; } .ds-code pre { margin: 0; padding: 16px 0; background: var(--paper-3, oklch(13.5% 0.007 250)); font-family: var(--font-outlier, ui-monospace, monospace); font-size: 0.875rem; line-height: 1.6; color: var(--ink-2, oklch(83% 0.008 250)); } .ds-code code { display: block; white-space: normal; } .ds-line { display: block; white-space: pre; min-width: 100%; padding-inline: 16px; counter-increment: line; transition: background-color 90ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-line::before { content: counter(line); display: inline-block; width: 4ch; margin-right: 16px; text-align: right; color: var(--muted-foreground, oklch(71% 0.01 250)); user-select: none; -webkit-user-select: none; } .ds-line-hl { background: color-mix(in oklab, var(--brand, oklch(82% 0.15 80)) 14%, transparent); } .ds-line-hl::before { color: var(--brand, oklch(82% 0.15 80)); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Panel",
+    "overview": "Paste is a near-black reading instrument. Every surface is one of three paper tiers, separated by 1px hairlines rather than by shadow, and every number the machine produced — an id, a hash, a byte count, an expiry date, a line number — is set in a mono face so a reader can tell at a glance which words came from the product and which came from a person. The system was established in the project's approved dark-only prototype and has held across twelve milestones; src/app/globals.css is its single source of truth and there is no light theme to maintain.\n\nThe register is forensic rather than dramatic. Panes are quiet (--paper-2 on --paper), code sits on a recessed --paper-3 band, and colour appears only where it carries meaning: amber where something is live, red where something is refused, green where something is clean, blue where something is a machine-read figure worth noticing. There are no gradients used as surface fill, no glass, no elevation shadows, and no decorative imagery — this product renders text, and the rules the prototype carried for photographic treatment were dropped on the way in.\n\nDensity is high and deliberately tabular. The recurring unit across every screen is a definition list of hairline-divided fact rows — label left in muted ink, machine value right in mono with tabular figures — used by the expiry readout, the 410 tombstone, the save receipt, the retention table and the home page's figure rail. That row is the house pattern; a new surface that needs to state facts should reach for it before inventing anything.",
+    "keyCharacteristics": [
+      "Dark-only, three paper tiers, hairline --rule dividers at 1px",
+      "Two semantic accents: amber for live, red for refusal (plus green for clean, blue for figures)",
+      "Host Grotesk for language, Atkinson Hyperlegible Mono for machine-written values only",
+      "10px radius on nearly everything; flat surfaces, no elevation shadows",
+      "4px spacing grid; a 1440px measured column with a 64/24/16px gutter",
+      "Motion is scoped, information-bearing, and absent by default"
+    ],
+    "rules": [
+      { "name": "The Two Accents Rule", "body": "Amber owns live and affirmative state; red owns refusal. They are not interchangeable and neither is ever used as decoration. A new surface that wants a colour for \"important\" does not get one.", "section": "colors" },
+      { "name": "The Live-State Rule", "body": "Amber marks the thing that is currently true — the loaded tab, the selected lines, the session, the primary action. If a device would be amber in two places on one screen for two different reasons, one of them is wrong.", "section": "colors" },
+      { "name": "The Machine-Written Rule", "body": "Mono is reserved for values the machine produced. It is never a costume for making prose look technical — if a human wrote the words, they are set in Host Grotesk.", "section": "typography" },
+      { "name": "The Tabular Column Rule", "body": "Any figure that is compared down a column carries the num utility (font-variant-numeric: tabular-nums): sizes, line counts, view counts, dates.", "section": "typography" },
+      { "name": "The Measured Column Rule", "body": "Every route renders inside container-page. AppShell's bleed prop is the single documented exception, for a surface that composes its own full-width regions; it drops the container and its padding and that surface then owns its own gutters.", "section": "layout" },
+      { "name": "The Hairline Grid Rule", "body": "Regions are divided by a 1px --rule border on the shared edge, not by a gap, a background change or a card. A fact table is a dl of rows each carrying border-b border-rule, with the last row's border removed.", "section": "layout" },
+      { "name": "The No-Shadow Rule", "body": "Surfaces never cast. If a region needs to read as separate, change its paper tier or give it a hairline. The only box-shadow anywhere in the build is a 2px inset brand band used as an underline on the loaded sample tab, which is a border substitute and not a licence to introduce elevation.", "section": "elevation" },
+      { "name": "The Earned Motion Rule", "body": "An animation ships only if it carries information: the consequence of a choice, the arrival of a refusal, the exit of a row from a queue. Default is no motion.", "section": "components" },
+      { "name": "The One Gesture Rule", "body": "One event gets one moving object. Two things moving to announce one save reads as a product pleased with itself.", "section": "components" },
+      { "name": "The Quoted Control Rule", "body": "When a real component is embedded in an argument as evidence, it keeps its shape and loses its fill: the region is inert, and descendant buttons and links are stripped to a --rule border with --ink-2 text, so a quoted primary action cannot compete with the page's own.", "section": "components" }
+    ],
+    "dos": [
+      "Do take every colour, radius, type step and duration from src/app/globals.css. It is the single source of truth, declared through Tailwind v4 @theme / @utility.",
+      "Do keep the two accents semantic: --brand for live and affirmative, --bad (with --bad-soft) for refusal, --ok for clean, --cool for a notable machine figure.",
+      "Do set every machine-written value in --font-outlier, with num on anything compared down a column.",
+      "Do build fact statements as hairline dl rows — label left in muted ink, value right in mono.",
+      "Do divide regions with a 1px --rule border and a change of paper tier.",
+      "Do wrap routes in container-page; use AppShell's bleed only for a surface that composes its own full-width regions.",
+      "Do give every loading placeholder role=\"status\" with an aria-label, shaped like the thing it replaces.",
+      "Do keep the view route to its single client module (body-tools.tsx) and its transitions in CSS; view-page-budget.spec.ts and view-route-imports.spec.ts fail the build otherwise.",
+      "Do keep stored render output free of inline style attributes — Shiki declarations are moved to generated classes by src/lib/render/tokens.ts so the per-request-nonce CSP can stay at style-src 'self' (asserted by no-inline-styles.spec.ts)."
+    ],
+    "donts": [
+      "Don't add an elevation shadow, a glass/backdrop-blur surface, or a gradient used as a surface fill. (Gradients as a mask-image overflow fade are an existing, legitimate device; the prohibition is on gradients as decoration.)",
+      "Don't add a light theme or a .dark class. The system is dark-only and :root carries the palette.",
+      "Don't render a refusal in amber or a live state in red.",
+      "Don't use mono as a technical costume for prose, or proportional figures in a column.",
+      "Don't declare --spacing-* theme tokens; that namespace also drives sizing utilities and will silently collapse max-w-*.",
+      "Don't introduce a motion token outside the 90-200 ms ease-out band, or a spring on anything containing text. The 900 ms save receipt is the only carve-out and it is already documented.",
+      "Don't animate the view page or the 410 tombstone, and don't add an entrance or scroll-reveal animation to the home page.",
+      "Don't put more than one amber-filled primary action in a region, and don't leave a quoted component's primary fill intact.",
+      "Don't invent customers, logos, testimonials, counts or traffic figures as visual content; PRODUCT.md records that none exist."
+    ]
+  }
+}

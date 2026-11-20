@@ -86,7 +86,7 @@ export function TombstoneView({ tombstone }: { tombstone: Tombstone }) {
 
       <div className="flex flex-wrap gap-3">
         <Button asChild>
-          <Link href="/">Create a new paste</Link>
+          <Link href="/new">Create a new paste</Link>
         </Button>
       </div>
     </div>

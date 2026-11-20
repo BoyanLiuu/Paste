@@ -29,13 +29,45 @@ test.afterAll(cleanUpSeeded);
 
 test.describe("signed out", () => {
   test("the create form renders and offers sign-in", async ({ page }) => {
-    const response = await page.goto("/");
+    const response = await page.goto("/new");
     expect(response?.status()).toBe(200);
 
-    // Not a redirect. `/` is where someone arrives from a link, and bouncing them to a
-    // sign-in wall before they have typed anything is the opposite of the product.
-    expect(new URL(page.url()).pathname).toBe("/");
+    // NOT A REDIRECT, and this is the assertion rather than the status code. Bouncing a
+    // visitor to a sign-in wall before they have typed anything is the opposite of the
+    // product: the form renders signed out and the refusal happens on submit.
+    expect(new URL(page.url()).pathname).toBe("/new");
     await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
+    await expect(page.getByLabel("Text")).toBeVisible();
+  });
+
+  test("the landing page renders signed out, with its screenshots", async ({
+    page,
+  }) => {
+    // THE SURFACE A STRANGER MEETS FIRST, and it has to work with no session at all.
+    // Asserted on the images because they are what this page's argument is made of: if
+    // `public/shots/` is missing from the deploy, the page still renders every heading and
+    // every claim with four broken boxes where the evidence was.
+    const response = await page.goto("/");
+    expect(response?.status()).toBe(200);
+    expect(new URL(page.url()).pathname).toBe("/");
+
+    // SELECTED BY STRUCTURE, NOT BY `src`. The first version matched
+    // `img[src*="/shots/"]` and found zero elements on a page with four images:
+    // `next/image` rewrites the attribute to `/_next/image?url=%2Fshots%2Fread.png&w=…`,
+    // so the path is there but percent-encoded. Matching the figure is both stable
+    // against that and the thing actually being asserted — a screenshot with a caption.
+    const shots = page.locator("main figure img");
+    await expect(shots).toHaveCount(4);
+
+    // DECODED, not merely present. A 404 on the image still produces an `<img>` in the
+    // DOM with a measurable box, so `toBeVisible` passes on a broken one — and on this
+    // page a broken box is the whole argument missing.
+    for (let i = 0; i < 4; i += 1) {
+      const loaded = await shots
+        .nth(i)
+        .evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0);
+      expect(loaded, `screenshot ${i} did not load`).toBe(true);
+    }
   });
 
   test("a live paste reads, with its content", async ({ page }) => {

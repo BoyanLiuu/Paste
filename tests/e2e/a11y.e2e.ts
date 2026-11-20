@@ -49,8 +49,17 @@ async function scan(page: import("@playwright/test").Page, label: string) {
 }
 
 test.describe("accessibility", () => {
-  test("the create form", async ({ page }) => {
+  test("the landing page", async ({ page }) => {
+    // ITS OWN SURFACE SINCE 19 NOV 2026. `/` used to be the create form, so this case
+    // covered both and now covers neither by accident — a page of headings, figures and
+    // four linked screenshots has entirely different failure modes from a form, starting
+    // with whether those images carry alt text.
     await page.goto("/");
+    await scan(page, "the landing page");
+  });
+
+  test("the create form", async ({ page }) => {
+    await page.goto("/new");
     await scan(page, "the create form");
   });
 
@@ -136,7 +145,7 @@ test.describe("keyboard", () => {
   test("the create form reaches its submit button by keyboard", async ({
     page,
   }) => {
-    await page.goto("/");
+    await page.goto("/new");
 
     // WAIT FOR THE STREAMED FORM FIRST. The form is inside a Suspense boundary, so
     // `goto` resolves against the shell and the first version of this test spent all forty

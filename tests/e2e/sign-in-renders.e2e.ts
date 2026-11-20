@@ -117,7 +117,12 @@ test.describe("the sign-in page", () => {
     // looks identical.
     await home.click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByLabel("Text")).toBeVisible();
+    // THE LANDING PAGE, not the form. This used to assert the textarea, because `/` was
+    // the create form until 19 Nov 2026 — the h1 is what tells you the wordmark reached a
+    // rendered page rather than a blank shell.
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Paste it once/ }),
+    ).toBeVisible();
   });
 
   test("sign-up has it too", async ({ page }) => {

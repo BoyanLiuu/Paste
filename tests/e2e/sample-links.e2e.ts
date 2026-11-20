@@ -2,6 +2,12 @@ import { expect, test } from "@playwright/test";
 
 // The sample links on the create page (ux-01 – ux-12).
 //
+// THE PAGE MOVED TO `/new` ON 19 NOV 2026, when `/` became a landing page. Everything the
+// seam below describes is unchanged — `/new?sample=python` is still the same route as
+// `/new`, so clicking a sample is still a client-side navigation that does not remount —
+// but the sample links themselves moved out of `create-form.tsx` and into `new/page.tsx`,
+// and "New paste" went from two controls on one page to one here and one on `/`.
+//
 // WHAT BROKE, and why nothing caught it. `/?sample=python` is the SAME ROUTE, so clicking a
 // sample link is a client-side navigation: the server component re-runs and sends a new
 // `initialBody`, React reconciles `CreateForm` in place rather than remounting it, and
@@ -25,14 +31,14 @@ import { expect, test } from "@playwright/test";
 
 test.describe("the sample links", () => {
   test("clean Python fills the textarea", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/new");
     const body = page.getByLabel("Text");
     await expect(body).toHaveValue("");
 
-    // CLICKED, not navigated to. Arriving at /?sample=python directly mounts the form once
+    // CLICKED, not navigated to. Arriving at /new?sample=python directly mounts the form once
     // with the right default and passes either way — it is the in-page click that
     // reproduces the bug, because it is the one that does not remount.
-    await page.getByRole("link", { name: "clean Python" }).click();
+    await page.getByRole("link", { name: "clean Python", exact: true }).click();
 
     await expect(body).toHaveValue(/def /);
   });
@@ -43,8 +49,11 @@ test.describe("the sample links", () => {
     // sample is excluded: it is 27.5 MB and asserting its contents would make this test a
     // load generator rather than a check.
     for (const name of ["clean Python", "a log", "an AWS key", "a password"]) {
-      await page.goto("/");
-      await page.getByRole("link", { name }).click();
+      await page.goto("/new");
+      // A row under the page's heading. These were 11px links under the Save button, then
+      // the home page's tab strip; the URLs they point at have never changed except for
+      // the `/new` prefix.
+      await page.getByRole("link", { name, exact: true }).click();
 
       await expect(
         page.getByLabel("Text"),
@@ -53,49 +62,80 @@ test.describe("the sample links", () => {
     }
   });
 
-  test("the hero's sample link works too", async ({ page }) => {
-    // A second entry point, with a fragment on it: `/?sample=python#new`. MEASURED: this
-    // one passed both with and without the fix, so it is not what catches the regression —
-    // the fragment makes Next treat it differently from the footer links and the form
-    // remounts either way. Kept because it is a distinct path to the same state, and
-    // labelled so nobody reads it as the guard. The footer-link tests above are the guard.
-    await page.goto("/");
-    await page.getByRole("link", { name: "Open a sample paste" }).click();
+  test("the landing page's sample link lands on a filled form", async ({
+    page,
+  }) => {
+    // A CROSS-ROUTE ENTRY POINT, and now genuinely different from the tests above rather
+    // than a near-duplicate of them. `/` offers "Open a sample" twice — in the hero and in
+    // the footer — and both point at `/new?sample=python`, which is a real navigation to a
+    // different route: the form mounts once with the right default and the remount seam is
+    // never exercised. That is why it is labelled as not being the guard; the sample-row
+    // clicks above are the guard.
+    //
+    // Both copies are checked because they are two separate links that have to agree, and
+    // the footer's was wrong for a week while the hero's was right.
+    for (const index of [0, 1]) {
+      await page.goto("/");
+      await page
+        .getByRole("link", { name: "Open a sample" })
+        .nth(index)
+        .click();
 
-    await expect(page.getByLabel("Text")).toHaveValue(/def /);
+      // `toHaveURL`, NOT a read of `page.url()`. `click()` resolves when the click
+      // dispatches, not when the navigation it triggers finishes, so the synchronous read
+      // saw "/" and failed on a working link. The fourth timing race in this file, same
+      // shape as the other three: every assertion about a streamed page needs its own wait.
+      await expect(page).toHaveURL(/\/new\?sample=python$/);
+      await expect(page.getByLabel("Text")).toHaveValue(/def /);
+    }
   });
 
   test("arriving at a sample URL directly also fills it", async ({ page }) => {
     // The case that always worked, kept so a future fix that breaks the direct load
     // while fixing the click does not look green.
-    await page.goto("/?sample=log");
+    await page.goto("/new?sample=log");
     await expect(page.getByLabel("Text")).toHaveValue(/[\s\S]{20,}/);
   });
 
   test("New paste clears a loaded sample", async ({ page }) => {
-    // BOTH CONTROLS, because they were two different links and only one worked. The nav
-    // link points at `/`, which is a real navigation and remounts the form. The hero
-    // button pointed at a bare `#new` — a same-page jump that scrolled to the form and
-    // left the sample sitting in it, so "New paste" handed you somebody else's text.
+    // THE SAME-ROUTE CASE, which is the one that can fail. From `/new?sample=python` the
+    // nav's "New paste" points at `/new`: a client-side navigation within one route, so
+    // React reconciles `CreateForm` in place and only the `key={sample ?? "blank"}` makes
+    // it remount with an empty default. Remove that key and this goes red.
+    //
+    // It used to check two controls, because the hero's "New paste" sat on the same page
+    // and pointed at a bare `#new` — a same-page jump that scrolled to the form and left
+    // the sample in it. That control lives on `/` now, where it is an ordinary
+    // cross-route link; the test below covers it.
     const body = page.getByLabel("Text");
 
-    // The nav link and the hero button share an accessible name, so they are taken by
-    // position: 0 is the nav, 1 is the hero. Measured — with the fix reverted, 0 passes and
-    // 1 fails, which is the whole point of covering both.
-    for (const [index, which] of [
-      [0, "the nav link"],
-      [1, "the hero button"],
-    ] as const) {
-      await page.goto("/?sample=python");
-      await expect(body).toHaveValue(/def /);
+    await page.goto("/new?sample=python");
+    await expect(body).toHaveValue(/def /);
 
-      await page
-        .getByRole("link", { name: "New paste", exact: true })
-        .nth(index)
-        .click();
+    await page.getByRole("link", { name: "New paste", exact: true }).click();
+    await expect(body, '"New paste" left the sample in the box').toHaveValue(
+      "",
+    );
+  });
+
+  test("New paste from the landing page opens an empty form", async ({
+    page,
+  }) => {
+    // THE CROSS-ROUTE CASE. `/` offers "New paste" in the nav, the hero and the footer,
+    // and all three have to arrive at an empty box — the nav's is the one that was a bare
+    // `#new` fragment and did nothing at all.
+    await page.goto("/");
+    const links = page.getByRole("link", { name: "New paste", exact: true });
+    await expect(links).toHaveCount(3);
+
+    for (let i = 0; i < 3; i += 1) {
+      await page.goto("/");
+      await links.nth(i).click();
+
+      await expect(page).toHaveURL(/\/new$/);
       await expect(
-        body,
-        `"New paste" (${which}) left the sample in the box`,
+        page.getByLabel("Text"),
+        `"New paste" (${i}) did not reach an empty form`,
       ).toHaveValue("");
     }
   });
@@ -103,15 +143,12 @@ test.describe("the sample links", () => {
   test("New paste also clears the title", async ({ page }) => {
     // The sample sets a title too, and a stale title on an empty body is the more
     // confusing half: the page looks new and the paste is named `retry_backoff.py`.
-    await page.goto("/?sample=python");
+    await page.goto("/new?sample=python");
     await expect(page.getByLabel("Title (optional)")).toHaveValue(
       "retry_backoff.py",
     );
 
-    await page
-      .getByRole("link", { name: "New paste", exact: true })
-      .nth(1)
-      .click();
+    await page.getByRole("link", { name: "New paste", exact: true }).click();
     await expect(page.getByLabel("Title (optional)")).toHaveValue("");
   });
 
@@ -126,7 +163,7 @@ test.describe("the sample links", () => {
     // layout one: a future change could drop `field-sizing-fixed` and a class assertion
     // would catch it, while a different change could set an explicit height that goes stale
     // against the font and only this check would notice.
-    await page.goto("/");
+    await page.goto("/new");
     const body = page.getByLabel("Text");
     await expect(body).toHaveValue("");
 
@@ -142,7 +179,7 @@ test.describe("the sample links", () => {
     await expect.poll(height).toBeGreaterThan(50);
     const empty = await height();
 
-    await page.goto("/?sample=python");
+    await page.goto("/new?sample=python");
     await expect(body).toHaveValue(/def /);
     await expect.poll(height).toBeGreaterThan(50);
     const filled = await height();
@@ -174,7 +211,7 @@ test.describe("the sample links", () => {
     // assertions are kept rather than deleted so the next person with a session can run
     // them, and `create-receipt.tsx` carries the same note.
     test.skip(true, "needs a signed-in session to own a paste");
-    await page.goto("/?saved=5CEXkh7Z");
+    await page.goto("/new?saved=5CEXkh7Z");
 
     await expect(page.getByRole("heading", { name: "Saved" })).toBeVisible();
     await expect(page.getByText("Pick how long it lives now")).toHaveCount(0);
@@ -188,35 +225,26 @@ test.describe("the sample links", () => {
     await expect(page.getByRole("button", { name: "Copy link" })).toBeVisible();
   });
 
-  test("every New paste control escapes the receipt", async ({ page }) => {
-    // THE SECOND DEFECT, and the one that is invisible without clicking. "New paste" in the
-    // hero and in the nav are links to `/#new` and `/` — and from `/` neither is a
-    // navigation, so with the receipt held in form state they updated the address bar and
-    // left it on screen. From `?saved=` they all lead away from a different URL.
+  test("New paste escapes the receipt", async ({ page }) => {
+    // THE SECOND DEFECT, and the one that is invisible without clicking. "New paste" used
+    // to be a link to `/#new` from `/` — not a navigation at all — so with the receipt
+    // held in form state it updated the address bar and left the receipt on screen. From
+    // `?saved=` it leads away from a different URL, and the `key` remounts the form.
     //
-    // Both are checked by position: 0 is the nav, 1 the hero. The receipt used to carry a
-    // third copy and no longer does — two permanent controls that do the same thing made
-    // the one inside the card redundant, and it competed with the two actions that are
-    // specific to having just saved something.
-    for (const [index, which] of [
-      [0, "the nav link"],
-      [1, "the hero button"],
-    ] as const) {
-      test.skip(true, "needs a signed-in session to own a paste");
-      await page.goto("/?saved=5CEXkh7Z");
-      await expect(page.getByRole("heading", { name: "Saved" })).toBeVisible();
+    // The receipt itself used to carry a third copy of this control and no longer does: a
+    // permanent nav link doing the same thing made the one inside the card redundant, and
+    // it competed with the two actions specific to having just saved something.
+    test.skip(true, "needs a signed-in session to own a paste");
+    await page.goto("/new?saved=5CEXkh7Z");
+    await expect(page.getByRole("heading", { name: "Saved" })).toBeVisible();
 
-      await page
-        .getByRole("link", { name: "New paste", exact: true })
-        .nth(index)
-        .click();
+    await page.getByRole("link", { name: "New paste", exact: true }).click();
 
-      await expect(
-        page.getByLabel("Text"),
-        `"New paste" (${which}) did not return to the form`,
-      ).toBeVisible();
-      await expect(page.getByRole("heading", { name: "Saved" })).toHaveCount(0);
-    }
+    await expect(
+      page.getByLabel("Text"),
+      '"New paste" did not return to the form',
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Saved" })).toHaveCount(0);
   });
 
   test("a saved id the viewer did not save shows the form, not a receipt", async ({
@@ -237,7 +265,7 @@ test.describe("the sample links", () => {
       "zzzzzzzz", // right shape, no such paste
       "SCnZoSWi", // right shape, a real paste, not the viewer's
     ]) {
-      await page.goto(`/?saved=${id}`);
+      await page.goto(`/new?saved=${id}`);
       await expect(
         page.getByLabel("Text"),
         `?saved=${id} did not fall back to the form`,

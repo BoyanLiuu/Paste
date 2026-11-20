@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -16,7 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ExpiryReadout } from "@/components/expiry-readout";
@@ -32,7 +30,7 @@ import {
 } from "@/lib/expiry/retention";
 import { formatBytes } from "@/lib/format";
 import { MAX_BYTES } from "@/lib/render/thresholds";
-import { buildOversizedBody, SAMPLE_BODIES } from "@/lib/samples";
+import { buildOversizedBody } from "@/lib/samples";
 import {
   AUTO_LANGUAGE,
   byteLength,
@@ -231,7 +229,7 @@ export function CreateForm({
       // the top of the document on a navigation by default, which put the hero back on
       // screen and the confirmation below the fold — so the reward for saving was a page
       // that appeared to have forgotten.
-      router.replace(`/?saved=${payload.id}`, { scroll: false });
+      router.replace(`/new?saved=${payload.id}`, { scroll: false });
       return;
     }
 
@@ -261,6 +259,14 @@ export function CreateForm({
       <CreateReceipt receipt={receipt} onDismiss={() => setReceipt(null)} />
     );
   }
+
+  // Tier 1 is the only tier that cannot be saved at all, so it is the only one that
+  // changes what the controls offer. `live` is the debounced in-page scan, which is
+  // advisory — `create-paste.ts` scans again inside the transaction, and that is the
+  // enforcement.
+  const tier1 =
+    live.status === "findings" ? live.findings.filter((f) => f.tier === 1) : [];
+  const blockedByScan = tier1.length > 0;
 
   const errors = form.formState.errors;
 
@@ -313,6 +319,9 @@ export function CreateForm({
             id="body"
             rows={16}
             spellCheck={false}
+            // An empty 330px box is the visual centre of this page, and a void there
+            // reads as a broken editor rather than an invitation.
+            placeholder={"Paste a log, a config, a stack trace…"}
             className="field-sizing-fixed resize-y font-mono text-sm"
             {...form.register("body")}
           />
@@ -396,53 +405,90 @@ export function CreateForm({
           </div>
         ) : null}
 
-        <div>
-          <Button type="submit" disabled={form.formState.isSubmitting}>
+        {/* SAVE REFUSES WHILE A TIER-1 FINDING IS LIVE, and the reason sits beside it.
+            It was enabled in the one state the page labels "Cannot be saved": a full brand
+            primary inviting the click that the product's central claim says is impossible.
+            The server refuses it either way — `assertCan` and the scan run again before the
+            insert — so this is not the enforcement, it is the affordance telling the truth
+            about what the enforcement will do. Tier 2 and 3 stay clickable, because those
+            are the ones a written justification gets past. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            type="submit"
+            disabled={form.formState.isSubmitting || blockedByScan}
+          >
             {form.formState.isSubmitting ? "Saving…" : "Save"}
           </Button>
+          {blockedByScan ? (
+            <p className="text-bad text-sm">
+              A tier-1 secret cannot be saved. Redact it, or remove the line.
+            </p>
+          ) : null}
         </div>
 
-        <Separator />
-
-        <p className="text-muted-foreground text-xs">
-          Sample text:{" "}
-          {SAMPLES.map((s, i) => (
-            <span key={s.id}>
-              {i > 0 ? ", " : ""}
-              <Link className="underline" href={`/?sample=${s.id}`}>
-                {s.label}
-              </Link>
-            </span>
-          ))}
-        </p>
+        {/* The sample links used to live here, as 11px text nobody found. They are a row
+            under this page's heading now — the same `?sample=` links, owned by
+            `/new/page.tsx` because they are navigation rather than form state. */}
       </form>
 
-      <ExpiryReadout
-        retention={retention}
-        now={now}
-        byteSize={bytes}
-        lineCount={lines}
-        language={
-          body === "" || language === AUTO_LANGUAGE
-            ? null
-            : (LANGUAGES.find((l) => l.id === language)?.label ??
-              language ??
-              null)
-        }
-      />
+      <div className="flex flex-col gap-4 self-start">
+        {/* THE REFUSAL, WHILE IT IS HAPPENING. `FindingsPanel` renders only after a submit
+            attempt, so the demonstration the samples exist for — load the AWS sample and
+            watch the scanner refuse it — showed a 13px badge and nothing else: the finding
+            was neither named nor located.
+            `preview` is the first four and last four characters only, never the secret
+            (§6.1), which is what makes it safe to print beside the text it came from. */}
+        {blockedByScan ? (
+          <section
+            aria-live="polite"
+            className="border-bad/40 bg-card flex flex-col gap-3 rounded-lg border p-5"
+          >
+            <h2 className="text-bad text-sm font-medium">
+              {tier1.length === 1
+                ? "This cannot be saved"
+                : `${tier1.length} findings cannot be saved`}
+            </h2>
+            {tier1.slice(0, 3).map((finding) => (
+              <div
+                key={`${finding.rule}-${finding.line}-${finding.colStart}`}
+                className="flex flex-col gap-1"
+              >
+                <p className="text-sm">{finding.label}</p>
+                <p className="text-muted-foreground font-mono text-xs">
+                  line {finding.line}, column {finding.colStart} ·{" "}
+                  <span className="bg-brand-soft text-ink rounded px-1">
+                    {finding.preview}
+                  </span>
+                </p>
+              </div>
+            ))}
+            <p className="text-ink-2 text-xs leading-relaxed">
+              No paste is written and no id is issued, so there is nothing to
+              retract.
+            </p>
+          </section>
+        ) : null}
+
+        {/* `self-start` on the wrapper so the panel sizes to its content. Stretched to the
+            grid row it grew a tall empty bottom, which a bordered card makes
+            conspicuous. */}
+        <ExpiryReadout
+          retention={retention}
+          now={now}
+          byteSize={bytes}
+          lineCount={lines}
+          language={
+            body === "" || language === AUTO_LANGUAGE
+              ? null
+              : (LANGUAGES.find((l) => l.id === language)?.label ??
+                language ??
+                null)
+          }
+        />
+      </div>
     </div>
   );
 }
-
-// Derived from SAMPLE_BODIES rather than listed again.
-//
-// This was a second hardcoded list of the same five labels, and the duplication did what
-// duplication does: it still said "11 MB of log" after the size ceiling moved to 25 MB and
-// `samples.ts` had been corrected. One source, and the oversize label now comes from the
-// ceiling itself so neither copy can go stale.
-const SAMPLES = (["python", "log", "aws", "password", "huge"] as const).map(
-  (id) => ({ id, label: SAMPLE_BODIES[id].label }),
-);
 
 const BADGE_COPY: Record<string, string> = {
   idle: "",
@@ -452,10 +498,24 @@ const BADGE_COPY: Record<string, string> = {
   failed: "Check unavailable",
 };
 
+// TIER 1 IS NOT ANNOUNCED HERE AT ALL, and that is the second answer to the same problem.
+//
+// "Possible secret" was wrong for a tier-1 finding — it reads as a warning about something
+// overridable, when the paste is refused outright. The first fix gave this badge its own
+// sentence, "Cannot be saved", which put that sentence in the viewport three times: here,
+// in the refusal panel's header, and beside the disabled Save button.
+//
+// The panel wins, because it is the only one of the three that names the rule and locates
+// the match, and the Save-side line keeps the recovery. So on tier 1 the badge says
+// nothing and the panel beside it speaks. Tier 2 and 3 keep the badge: there is no panel
+// for them until a submit attempt, and a written reason gets them past.
+
 /** Crossfades between states and never reflows: it sits beside a textarea someone is
  *  typing into, and layout movement under a caret is worse than no feedback. */
 function ScanBadge({ live }: { live: ReturnType<typeof useDebouncedScan> }) {
   if (live.status === "idle") return null;
+  const blocked =
+    live.status === "findings" && live.findings.some((f) => f.tier === 1);
   const tone =
     live.status === "findings"
       ? "text-bad"
@@ -467,8 +527,10 @@ function ScanBadge({ live }: { live: ReturnType<typeof useDebouncedScan> }) {
       className={`font-mono text-xs transition-opacity ${tone}`}
       aria-live="polite"
     >
-      {BADGE_COPY[live.status]}
-      {live.status === "findings" ? ` (${live.findings.length})` : ""}
+      {blocked ? "" : BADGE_COPY[live.status]}
+      {live.status === "findings" && !blocked
+        ? ` (${live.findings.length})`
+        : ""}
       {live.partial ? " · first 1 MB" : ""}
     </span>
   );

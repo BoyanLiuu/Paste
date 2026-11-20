@@ -87,7 +87,7 @@ async function Listing({
           </p>
         </div>
         <Button asChild>
-          <Link href="/">New paste</Link>
+          <Link href="/new">New paste</Link>
         </Button>
       </div>
 
@@ -208,7 +208,7 @@ function Empty({
         </p>
         {own ? (
           <Button asChild>
-            <Link href="/">New paste</Link>
+            <Link href="/new">New paste</Link>
           </Button>
         ) : null}
       </div>

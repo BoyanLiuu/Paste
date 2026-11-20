@@ -21,9 +21,14 @@ import { getViewer } from "@/lib/server/session";
 export function AppShell({
   current,
   children,
+  bleed = false,
 }: {
   current: "new" | "pastes" | "moderation" | null;
   children: React.ReactNode;
+  /** Drop the centred container and its padding, for a surface that composes its own
+   *  full-width regions. The home page's first viewport is a split that reaches both
+   *  edges; every other route wants the measured column. */
+  bleed?: boolean;
 }) {
   return (
     <>
@@ -35,7 +40,7 @@ export function AppShell({
           </Link>
 
           <nav className="flex items-center gap-1 text-sm">
-            <NavLink href="/" active={current === "new"}>
+            <NavLink href="/new" active={current === "new"}>
               New paste
             </NavLink>
             {/* `fallback={null}` because this link is absent for a signed-out visitor
@@ -64,7 +69,9 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="container-page flex-1 py-10">{children}</main>
+      <main className={bleed ? "flex-1" : "container-page flex-1 py-10"}>
+        {children}
+      </main>
     </>
   );
 }

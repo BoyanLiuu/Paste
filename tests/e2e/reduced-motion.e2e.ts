@@ -72,7 +72,7 @@ function seconds(value: string): number {
 
 test.describe("with prefers-reduced-motion: reduce", () => {
   test("the create page settles, skeletons included", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/new");
 
     const { worst, where } = await longestMotion(page);
     expect(worst, `still animating: ${where}`).toBeLessThanOrEqual(SETTLED_MS);
