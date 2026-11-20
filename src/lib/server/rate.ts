@@ -14,6 +14,7 @@
 
 import "server-only";
 
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/server/prisma";
 
 /** Tokens in a full bucket, and the per-minute ceiling. */
@@ -24,6 +25,31 @@ const REFILL_PER_MS = MINUTE_CAPACITY / 60_000;
 
 /** The daily ceiling, which the minute bucket cannot express. */
 export const DAY_CAPACITY = 500;
+
+/**
+ * What is being charged: an account, or a caller's address.
+ *
+ * TWO TABLES, ONE STATEMENT. `rate_buckets` is keyed on a uuid with a foreign key to
+ * `users`; `ip_buckets` on a text hash with nothing to reference. They hold the same four
+ * columns on purpose, so the refill arithmetic below exists once — the alternative was a
+ * second copy of it, and the copy not on the hot path is the one that rots.
+ *
+ * The identifiers reach the SQL through `Prisma.raw`, which does not parameterise. That is
+ * only safe because they come from this closed table and never from a caller, which is why
+ * the shape is a discriminated union rather than a `{ table, column }` argument.
+ */
+export type RateTarget =
+  { kind: "user"; id: string } | { kind: "ip"; hash: string };
+
+const TABLES = {
+  user: { table: "rate_buckets", column: "user_id", cast: "::uuid" },
+  ip: { table: "ip_buckets", column: "ip_hash", cast: "" },
+} as const;
+
+/** The value the key column holds. */
+function keyOf(target: RateTarget): string {
+  return target.kind === "user" ? target.id : target.hash;
+}
 
 export interface RateDecision {
   ok: boolean;
@@ -60,17 +86,22 @@ const REFILL_PER_SEC = MINUTE_CAPACITY / 60;
  * against the same bucket, Postgres re-evaluates the WHERE against the committed row
  * after the lock is released, and two different users never touch the same row.
  */
-export async function charge(userId: string): Promise<RateDecision> {
+export async function charge(target: RateTarget): Promise<RateDecision> {
+  const { table, column, cast } = TABLES[target.kind];
+  const into = Prisma.raw(`paste.${table}`);
+  const key = Prisma.raw(`"${column}"`);
+  const value = keyOf(target);
+  const typed = Prisma.raw(cast);
   // The bucket, created on first use rather than alongside the user: a user row can
   // arrive from the seed or from M10's Clerk webhook, and every one of those paths would
   // otherwise have to remember to make a bucket. `ON CONFLICT DO NOTHING` so this is a
   // no-op once it exists and never contends.
   await prisma.$executeRaw`
-    INSERT INTO paste.rate_buckets
-      (user_id, minute_tokens, minute_refilled_at, day_count, day_started_at)
+    INSERT INTO ${into}
+      (${key}, minute_tokens, minute_refilled_at, day_count, day_started_at)
     VALUES
-      (${userId}::uuid, ${MINUTE_CAPACITY}, now(), 0, (now() AT TIME ZONE 'UTC')::date)
-    ON CONFLICT (user_id) DO NOTHING`;
+      (${value}${typed}, ${MINUTE_CAPACITY}, now(), 0, (now() AT TIME ZONE 'UTC')::date)
+    ON CONFLICT (${key}) DO NOTHING`;
 
   // Every column reference is to the row being updated, with no CTE holding a stale
   // snapshot — that distinction is what makes this safe. A `WITH refilled AS (SELECT …)`
@@ -80,7 +111,7 @@ export async function charge(userId: string): Promise<RateDecision> {
   const rows = await prisma.$queryRaw<
     { minute_tokens: number; day_count: number }[]
   >`
-    UPDATE paste.rate_buckets
+    UPDATE ${into}
        SET minute_tokens =
              FLOOR(LEAST(
                ${MINUTE_CAPACITY}::numeric,
@@ -93,7 +124,7 @@ export async function charge(userId: string): Promise<RateDecision> {
              ELSE day_count + 1
            END,
            day_started_at = (now() AT TIME ZONE 'UTC')::date
-     WHERE user_id = ${userId}::uuid
+     WHERE ${key} = ${value}${typed}
        -- A whole token must be available. FLOOR on write means a fractional remainder is
        -- discarded rather than banked, so repeated near-instant retries cannot
        -- accumulate sub-token refills into a free attempt.
@@ -120,7 +151,7 @@ export async function charge(userId: string): Promise<RateDecision> {
 
   // Refused. Which ceiling is a second read, which is fine: a refusal is the rare path
   // and nothing about it needs to be atomic — the charge already did not happen.
-  return describeRefusal(userId);
+  return describeRefusal(target);
 }
 
 /**
@@ -130,9 +161,12 @@ export async function charge(userId: string): Promise<RateDecision> {
  * who has hit a daily cap sends them back in sixty seconds to the same refusal, so the
  * distinction is worth a second query.
  */
-async function describeRefusal(userId: string): Promise<RateDecision> {
+async function describeRefusal(target: RateTarget): Promise<RateDecision> {
   const now = new Date();
-  const bucket = await prisma.rateBucket.findUnique({ where: { userId } });
+  const bucket =
+    target.kind === "user"
+      ? await prisma.rateBucket.findUnique({ where: { userId: target.id } })
+      : await prisma.ipBucket.findUnique({ where: { ipHash: target.hash } });
 
   if (bucket === null) {
     // The insert above guarantees a row, so this means it was deleted between the two

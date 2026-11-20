@@ -11,6 +11,7 @@
 import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { isPasteId } from "@/lib/ids";
 import { liveWhere } from "@/lib/server/live-where";
 import { renderMode, TRUNCATE_LINES } from "@/lib/render/thresholds";
 import { getBody, storageConfigured } from "@/lib/storage/body";
@@ -41,10 +42,25 @@ export const PAGE_SIZE = 50;
  * implies a saving it does not deliver is worse than none — the fix is `getPasteMeta`,
  * which simply stops asking for an expensive row.
  */
+// THE SHAPE CHECK LIVES HERE, not only in the proxy, because the two were allowed to
+// disagree. `view-route.ts` refuses an id that is not 8 base58 characters and answers 404 —
+// but these functions looked the row up regardless, so a paste stored under a malformed id
+// rendered its content under that 404. A status that contradicts its own body is the one
+// outcome §6.3 exists to prevent, arrived at from a direction §6.3 did not consider.
+//
+// REACHABLE ONLY BY A DELIBERATE WRITE, today: `newPasteId` always produces eight
+// characters, so the condition came from `seed-shot-subjects.mts` naming two subjects with
+// nine — and both of their pages served content under a 404. The ids were shortened, and
+// this guard is here so the next way of writing a malformed row cannot reopen it.
+//
+// Returning null rather than throwing: "no such paste" is what a malformed id means, and
+// every caller already answers null the way an unknown id should be answered.
 export async function getPaste(
   _viewer: Viewer,
   id: string,
 ): Promise<Paste | null> {
+  if (!isPasteId(id)) return null;
+
   const row = await prisma.paste.findUnique({
     where: { id },
     include: PASTE_INCLUDE,
@@ -151,6 +167,8 @@ export async function getPasteMeta(
   _viewer: Viewer,
   id: string,
 ): Promise<PasteMeta | null> {
+  if (!isPasteId(id)) return null;
+
   const row = await prisma.paste.findUnique({
     where: { id },
     select: {

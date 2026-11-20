@@ -26,6 +26,9 @@ const TABLES = [
   "deletion_requests",
   "audit_log",
   "rate_buckets",
+  // M14. Added here deliberately, which is what this list is for: the table arrived
+  // without `ENABLE ROW LEVEL SECURITY` and this test is what said so.
+  "ip_buckets",
   "paste_views",
 ] as const;
 

@@ -13,6 +13,7 @@ import { MAX_BYTES } from "@/lib/render/thresholds";
 import { formatBytes } from "@/lib/format";
 import { createPasteSchema } from "@/lib/schema/create-paste";
 import { BlockedBySecretScan, NeedsOverride } from "@/lib/server/create-paste";
+import { investigationHash, rateKey } from "@/lib/http/client-ip";
 import { createPaste } from "@/lib/server/mutations";
 import { charge } from "@/lib/server/rate";
 import { userIdFor } from "@/lib/server/users";
@@ -51,7 +52,20 @@ export async function POST(request: Request) {
   //
   // Before the size gate and the scan on purpose: those are the expensive stages, and a
   // refusal that costs nothing lets the scanner be used as a free oracle (§6.1).
-  const rate = await charge(ownerId);
+  //
+  // BOTH BUCKETS, AND THE ACCOUNT'S FIRST (M14). Each closes a hole the other leaves open:
+  //
+  //   - The account bucket alone does nothing about a caller who can make accounts, and
+  //     from M15 it does nothing at all about a guest who clears a cookie — a new guest is
+  //     a new bucket, which is a limit anyone can lift for free.
+  //   - The IP bucket alone charges one person for everyone behind an office NAT, so a
+  //     shared egress would exhaust a limit nobody individually reached.
+  //
+  // THE ORDER IS DELIBERATE. The account charge comes first so a signed-in caller's own
+  // quota is what refuses them, and the message names the limit they can reason about.
+  // Charging the IP first would tell someone behind a busy NAT that *they* had posted too
+  // much, which is both wrong and unactionable.
+  const rate = await charge({ kind: "user", id: ownerId });
   if (!rate.ok) {
     return NextResponse.json(
       {
@@ -68,6 +82,37 @@ export async function POST(request: Request) {
         },
       },
     );
+  }
+
+  // The address bucket, charged only after the account's quota allowed the attempt — so a
+  // caller this route has already refused does not also consume the shared bucket their
+  // neighbours depend on.
+  //
+  // A NULL KEY IS NOT A REFUSAL HERE, and that is the decision worth seeing. There is no
+  // proxy in development, so no header and no key, and treating that as a block would make
+  // the create path unusable locally. The ACCOUNT limit above still applies in that case,
+  // which is what makes the fallback safe — M15's anonymous path has no account limit
+  // behind it, so it has to refuse a missing key instead of waving it through.
+  const ipKey = rateKey(request.headers);
+  if (ipKey !== null) {
+    const ipRate = await charge({ kind: "ip", hash: ipKey });
+    if (!ipRate.ok) {
+      return NextResponse.json(
+        {
+          error:
+            ipRate.limit === "day"
+              ? "That is today's limit for this network. Try again tomorrow."
+              : "Too many pastes from this network in the last minute.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(ipRate.retryAfter),
+            "X-RateLimit-Remaining": "0",
+          },
+        },
+      );
+    }
   }
 
   // --- stage 3: gate the size, on the header AND on the real byte count
@@ -102,6 +147,16 @@ export async function POST(request: Request) {
     const paste = await createPaste(viewer, {
       ...input.value,
       createdVia: via,
+      // `created_ip_hash` IS FINALLY POPULATED. The column, its comment and the argument
+      // that carries it have existed since M6 and no caller ever supplied a value — so
+      // every paste in the database records nothing about where it came from, and there
+      // was no way to investigate abuse after the fact even in principle.
+      //
+      // Salted PER DAY rather than with the rate key's stable salt, which is the whole
+      // point of it being a second hash: it answers "which pastes came from one source
+      // today" and deliberately stops answering across days, so the column cannot become
+      // a permanent per-person history. `client-ip.ts` sets out both choices.
+      createdIpHash: investigationHash(request.headers) ?? undefined,
     });
 
     if (wantsPlainText(request)) {

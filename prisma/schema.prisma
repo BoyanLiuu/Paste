@@ -272,3 +272,23 @@ model PasteView {
   @@map("paste_views")
   @@schema("paste")
 }
+
+/// Rate limiting by caller address (M14). A sibling of RateBucket rather than a widening
+/// of it: see the migration for why the two tables stay apart.
+model IpBucket {
+  /// sha256(stable salt + limit scope), hex. Never the address — `lib/http/client-ip.ts`
+  /// explains why an unsalted hash of an IPv4 address is reversible, not anonymous. The
+  /// scope is the full address for v4 and the /64 for v6.
+  ipHash String @id @map("ip_hash")
+
+  /// Column for column identical to RateBucket, so one statement in `rate.ts` charges
+  /// either table. Divergence would mean two copies of the refill arithmetic.
+  minuteTokens     Int      @default(20) @map("minute_tokens")
+  minuteRefilledAt DateTime @default(now()) @map("minute_refilled_at") @db.Timestamptz(6)
+  dayCount         Int      @default(0) @map("day_count")
+  dayStartedAt     DateTime @default(now()) @map("day_started_at") @db.Date
+
+  @@index([minuteRefilledAt], map: "ip_buckets_stale")
+  @@map("ip_buckets")
+  @@schema("paste")
+}

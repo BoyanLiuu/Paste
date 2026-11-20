@@ -17,6 +17,7 @@ import {
 } from "@/lib/server/create-test-harness";
 import {
   getPaste,
+  getPasteMeta,
   getRaw,
   getRender,
   getRenderForPaste,
@@ -289,6 +290,60 @@ describe.skipIf(reason !== null)(
 
     it("returns null for an id no paste has ever had", async () => {
       await expect(getPaste(VIEWER, "zzzzzzzz")).resolves.toBeNull();
+    });
+
+    it("refuses a malformed id even when a row is stored under it", async () => {
+      // THE BUG: `view-route.ts` shape-checks the id and answers 404, and this function
+      // did not — so a paste stored under a malformed id served its content underneath
+      // that 404. A status contradicting its own body is what §6.3 exists to prevent.
+      //
+      // Reached in practice on 19 Nov 2026 by a seed script naming two subjects with NINE
+      // characters. `newPasteId` only ever produces eight, so a row like this one has to be
+      // written deliberately — which is exactly why the row is written here rather than the
+      // test settling for "a malformed id returns null", an assertion a missing row would
+      // satisfy on its own and which would still pass with the guard deleted.
+      await withTestOwner(async (owner) => {
+        const malformed = "ShotLive1"; // nine characters
+
+        await prisma.paste.create({
+          data: {
+            id: malformed,
+            ownerId: owner.userId,
+            language: "plaintext",
+            languageSource: "explicit",
+            retentionCode: "1d",
+            expiresAt: new Date(Date.now() + 86_400_000),
+            purgeAfter: new Date(Date.now() + 31 * 86_400_000),
+            state: "live",
+            createdVia: "web",
+            // WITH A REVISION, which is the difference between this test proving the guard
+            // and passing for the wrong reason. Measured: without a revision the reverted
+            // guard made `toPaste` throw "has no revisions", so the assertion went green on
+            // a crash rather than on the defect. With one, the reverted guard returns a
+            // complete Paste — content the proxy has already answered 404 for.
+            revisions: {
+              create: {
+                revisionNo: 1,
+                byteSize: 11,
+                lineCount: 1,
+                sha256: "a".repeat(64),
+                bodyText: "hello there",
+                reason: "original",
+                scanState: "complete",
+                createdById: owner.userId,
+              },
+            },
+          },
+        });
+
+        // The row is really there, so a null below is the guard and not an empty table.
+        await expect(
+          prisma.paste.findUnique({ where: { id: malformed } }),
+        ).resolves.not.toBeNull();
+
+        await expect(getPaste(VIEWER, malformed)).resolves.toBeNull();
+        await expect(getPasteMeta(VIEWER, malformed)).resolves.toBeNull();
+      });
     });
   },
 );

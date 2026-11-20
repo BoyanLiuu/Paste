@@ -8,6 +8,8 @@
 // near-miss bodies to learn what the rules match. The charge therefore commits before any
 // work and is never refunded.
 
+import { randomUUID } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { BlockedBySecretScan } from "@/lib/server/create-paste";
@@ -27,11 +29,11 @@ describe.skipIf(reason !== null)(
   () => {
     it("starts full and debits one token per attempt", async () => {
       await withTestOwner(async (owner) => {
-        const first = await charge(owner.userId);
+        const first = await charge({ kind: "user", id: owner.userId });
         expect(first.ok).toBe(true);
         expect(first.remaining).toBe(MINUTE_CAPACITY - 1);
 
-        const second = await charge(owner.userId);
+        const second = await charge({ kind: "user", id: owner.userId });
         expect(second.remaining).toBe(MINUTE_CAPACITY - 2);
       });
     });
@@ -39,10 +41,12 @@ describe.skipIf(reason !== null)(
     it("refuses once the minute bucket is empty, with a Retry-After", async () => {
       await withTestOwner(async (owner) => {
         for (let i = 0; i < MINUTE_CAPACITY; i += 1) {
-          expect((await charge(owner.userId)).ok).toBe(true);
+          expect((await charge({ kind: "user", id: owner.userId })).ok).toBe(
+            true,
+          );
         }
 
-        const refused = await charge(owner.userId);
+        const refused = await charge({ kind: "user", id: owner.userId });
         expect(refused.ok).toBe(false);
         expect(refused.limit).toBe("minute");
         // Long enough for a whole token, so a client that honours the header does not
@@ -64,7 +68,7 @@ describe.skipIf(reason !== null)(
 
         // Charge, then block, to assert the two are independent: the create path must
         // not refund a charge the route already committed.
-        const charged = await charge(owner.userId);
+        const charged = await charge({ kind: "user", id: owner.userId });
         expect(charged.ok).toBe(true);
 
         await expect(
@@ -87,9 +91,11 @@ describe.skipIf(reason !== null)(
     it("refills lazily rather than needing a sweeper", async () => {
       await withTestOwner(async (owner) => {
         for (let i = 0; i < MINUTE_CAPACITY; i += 1) {
-          await charge(owner.userId);
+          await charge({ kind: "user", id: owner.userId });
         }
-        expect((await charge(owner.userId)).ok).toBe(false);
+        expect((await charge({ kind: "user", id: owner.userId })).ok).toBe(
+          false,
+        );
 
         // Rewind the refill clock instead of waiting. The refill is computed from
         // elapsed time at read, which is what removes the need for a scheduled job —
@@ -99,7 +105,7 @@ describe.skipIf(reason !== null)(
           data: { minuteRefilledAt: new Date(Date.now() - 61_000) },
         });
 
-        const after = await charge(owner.userId);
+        const after = await charge({ kind: "user", id: owner.userId });
         expect(after.ok).toBe(true);
         // A full minute restores a full bucket, less the token just spent.
         expect(after.remaining).toBe(MINUTE_CAPACITY - 1);
@@ -109,7 +115,7 @@ describe.skipIf(reason !== null)(
     it("does not let sub-token refills accumulate into a free one", async () => {
       await withTestOwner(async (owner) => {
         for (let i = 0; i < MINUTE_CAPACITY; i += 1) {
-          await charge(owner.userId);
+          await charge({ kind: "user", id: owner.userId });
         }
 
         // Each of these is well under one token's worth of time. Storing fractional
@@ -120,7 +126,7 @@ describe.skipIf(reason !== null)(
             where: { userId: owner.userId },
             data: { minuteRefilledAt: new Date(Date.now() - 1_000) },
           });
-          const result = await charge(owner.userId);
+          const result = await charge({ kind: "user", id: owner.userId });
           // 1 s at 20 tokens/minute is a third of a token.
           expect(result.ok).toBe(false);
         }
@@ -129,7 +135,7 @@ describe.skipIf(reason !== null)(
 
     it("resets the day counter on a UTC date change, not a local one", async () => {
       await withTestOwner(async (owner) => {
-        await charge(owner.userId);
+        await charge({ kind: "user", id: owner.userId });
 
         await prisma.rateBucket.update({
           where: { userId: owner.userId },
@@ -143,7 +149,7 @@ describe.skipIf(reason !== null)(
           },
         });
 
-        const after = await charge(owner.userId);
+        const after = await charge({ kind: "user", id: owner.userId });
         expect(after.ok).toBe(true);
 
         const row = await prisma.rateBucket.findUniqueOrThrow({
@@ -155,7 +161,7 @@ describe.skipIf(reason !== null)(
 
     it("refuses on the day ceiling even with a full minute bucket", async () => {
       await withTestOwner(async (owner) => {
-        await charge(owner.userId);
+        await charge({ kind: "user", id: owner.userId });
         await prisma.rateBucket.update({
           where: { userId: owner.userId },
           data: {
@@ -166,7 +172,7 @@ describe.skipIf(reason !== null)(
           },
         });
 
-        const refused = await charge(owner.userId);
+        const refused = await charge({ kind: "user", id: owner.userId });
         expect(refused.ok).toBe(false);
         // The day ceiling is checked first, so the message names the right limit. Saying
         // "too many in the last minute" to someone who has hit a daily cap sends them
@@ -178,7 +184,7 @@ describe.skipIf(reason !== null)(
 
     it("does not double a quota under concurrent attempts", async () => {
       await withTestOwner(async (owner) => {
-        await charge(owner.userId);
+        await charge({ kind: "user", id: owner.userId });
         await prisma.rateBucket.update({
           where: { userId: owner.userId },
           data: { minuteTokens: 4, minuteRefilledAt: new Date() },
@@ -189,7 +195,9 @@ describe.skipIf(reason !== null)(
         // exists for, so the debit is a single conditional UPDATE and the row lock
         // serialises them.
         const results = await Promise.all(
-          Array.from({ length: 10 }, () => charge(owner.userId)),
+          Array.from({ length: 10 }, () =>
+            charge({ kind: "user", id: owner.userId }),
+          ),
         );
 
         // EXACTLY four, not "at most four". The earlier SERIALIZABLE version could only
@@ -204,6 +212,78 @@ describe.skipIf(reason !== null)(
         });
         expect(row.minuteTokens).toBeGreaterThanOrEqual(0);
       });
+    });
+  },
+);
+
+describe.skipIf(reason !== null)(
+  `charge by IP${reason ? ` (skipped: ${reason})` : ""}`,
+  () => {
+    /** A key no other test shares, so counts are exact. */
+    function freshKey(): string {
+      return `ip:${randomUUID().replaceAll("-", "")}${"0".repeat(32)}`.slice(
+        0,
+        67,
+      );
+    }
+
+    it("charges an address with no user row behind it", async () => {
+      // THE WHOLE POINT OF THE SECOND TABLE. `rate_buckets` is keyed on a uuid with a
+      // foreign key to `users`, so an anonymous caller had nothing to charge — which is
+      // why there was no throttle at all for anyone without an account.
+      const hash = freshKey();
+      const first = await charge({ kind: "ip", hash });
+
+      expect(first.ok).toBe(true);
+      expect(first.remaining).toBe(MINUTE_CAPACITY - 1);
+    });
+
+    it("keeps the account bucket and the address bucket independent", async () => {
+      // THE DEFECT THIS CATCHES: one shared table, or a key collision between the two,
+      // makes every create cost two tokens from one bucket — halving the published limit
+      // for everyone while both call sites look correct.
+      await withTestOwner(async (owner) => {
+        const hash = freshKey();
+
+        const user = await charge({ kind: "user", id: owner.userId });
+        const ip = await charge({ kind: "ip", hash });
+
+        expect(user.remaining).toBe(MINUTE_CAPACITY - 1);
+        expect(ip.remaining).toBe(MINUTE_CAPACITY - 1);
+
+        // And charging one does not move the other.
+        await charge({ kind: "ip", hash });
+        const userAgain = await charge({ kind: "user", id: owner.userId });
+        expect(userAgain.remaining).toBe(MINUTE_CAPACITY - 2);
+      });
+    });
+
+    it("refuses an address once its minute bucket is empty", async () => {
+      // The limit actually limiting. Charged to exhaustion rather than asserted from the
+      // arithmetic, because the arithmetic is in SQL and that is the part under test.
+      const hash = freshKey();
+
+      for (let i = 0; i < MINUTE_CAPACITY; i += 1) {
+        const decision = await charge({ kind: "ip", hash });
+        expect(decision.ok, `charge ${i + 1} of ${MINUTE_CAPACITY}`).toBe(true);
+      }
+
+      const refused = await charge({ kind: "ip", hash });
+      expect(refused.ok).toBe(false);
+      expect(refused.limit).toBe("minute");
+      expect(refused.retryAfter).toBeGreaterThan(0);
+    });
+
+    it("refuses two addresses independently", async () => {
+      // One address exhausting its bucket must not refuse another. A missing key in the
+      // WHERE clause would make the first caller of the minute lock everybody out.
+      const a = freshKey();
+      const b = freshKey();
+
+      for (let i = 0; i < MINUTE_CAPACITY; i += 1)
+        await charge({ kind: "ip", hash: a });
+      expect((await charge({ kind: "ip", hash: a })).ok).toBe(false);
+      expect((await charge({ kind: "ip", hash: b })).ok).toBe(true);
     });
   },
 );
