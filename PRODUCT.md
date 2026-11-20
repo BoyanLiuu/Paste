@@ -105,7 +105,10 @@ and the only way content changes is a destructive supersession that says so.
   log truncated with its banner. Real screenshots of these are approved evidence.
 - Four screenshots in `public/shots/`, captured from the running application by
   `pnpm shots` — a highlighted paste with a line-range permalink, a tier-1 refusal with
-  Save disabled, a 410 receipt carrying a real SHA-256, and the retention panel. They are
+  Save disabled, a **purged** 410 receipt whose bytes are destroyed and whose SHA-256 is
+  not, and the retention panel. Their subjects are seeded by `pnpm shots:seed` under the
+  visibly synthetic `shots-demo` owner, and their dimensions are generated into
+  `shot-sizes.generated.ts` at capture time rather than written into the page. They are
   approved evidence **because they are reproducible**: a committed script regenerates them
   from the live routes, and each one on the page links to the route it came from. A
   screenshot nobody can re-take is the `ux-*.png` problem below, arriving later.
@@ -113,7 +116,7 @@ and the only way content changes is a destructive supersession that says so.
   visitor types, before any account exists — approved as an interactive demonstration.
   It is no longer on the home page.
 - Figures that are checkable in the repository: 220 compiled rules, a 150 ms scan budget,
-  a 2,000-line highlight threshold, a 25 MB ceiling, 440 unit tests and 106 end-to-end.
+  a 2,000-line highlight threshold, a 25 MB ceiling, 449 unit tests and 165 end-to-end.
   Where a page prints one of these it **reads it from the module that defines it** rather
   than restating it, so the copy cannot drift from the code.
 - A designed fixture corpus used by the app and its tests.

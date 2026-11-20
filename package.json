@@ -22,7 +22,7 @@
     "db:status": "prisma migrate status",
     "db:seed": "NODE_OPTIONS=--conditions=react-server tsx prisma/seed.mts",
     "shots": "tsx scripts/capture-shots.mts",
-    "shots:seed": "tsx scripts/seed-shot-subjects.mts",
+    "shots:seed": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed-shot-subjects.mts",
     "measure:thresholds": "NODE_OPTIONS=--conditions=react-server tsx scripts/measure-thresholds.mts"
   },
   "dependencies": {

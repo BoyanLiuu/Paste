@@ -12,6 +12,9 @@ import {
 } from "@/lib/render/thresholds";
 import { RULES } from "@/lib/secrets/rules.generated";
 
+import { SHOT_SIZES, type ShotName } from "@/lib/shot-sizes.generated";
+import { LIVE_SUBJECT_ID, PURGED_SUBJECT_ID } from "@/lib/shot-subjects";
+
 // GET / — the landing page.
 //
 // IT IS NOT THE CREATE FORM ANY MORE, and that was the point of this change. For twelve
@@ -52,8 +55,13 @@ const FIGURES = [
     label: "lines highlighted, rendered once at save",
   },
   { value: formatBytes(MAX_BYTES), label: "ceiling, for every caller" },
-  { value: "0", label: "404s for an id that once existed" },
 ] as const;
+
+// THE FOURTH FIGURE WAS `"0"`, typed, in a row sitting under a comment saying these are read
+// rather than typed. It also framed an architectural invariant as a measurement: "0 404s for
+// an id that once existed" is not a number anybody counted, it is a rule the design enforces.
+// It belongs in the sentence below the row, as a claim, not in a column of measured values.
+const INVARIANT = "No id that has ever existed returns a 404.";
 
 export default function Page() {
   return (
@@ -72,10 +80,13 @@ function Hero() {
     <section className="border-rule border-b">
       <div className="container-page flex flex-col gap-14 py-20">
         <div className="flex max-w-[52rem] flex-col gap-6">
-          <p className="text-brand font-mono text-xs tracking-[0.12em] uppercase">
-            Snippet sharing
-          </p>
-          <h1 className="text-[2.5rem] leading-[1.05] font-semibold tracking-[-0.03em] sm:text-[3.5rem]">
+          {/* NO EYEBROW. "SNIPPET SHARING" sat here in brand mono and said nothing the
+              headline does not — a category label above a heading, which is the generic
+              shape this page's thesis claims to refuse, and mono used as costume where the
+              system reserves it for machine-written values. `text-balance` because the
+              headline set as "Paste it once. The / link keeps answering." at both 1440 and
+              1024, splitting the article from its noun. */}
+          <h1 className="text-[2.5rem] leading-[1.05] font-semibold tracking-[-0.03em] text-balance sm:text-[3.5rem]">
             Paste it once. The link keeps answering.
           </h1>
           <p className="text-ink-2 max-w-[46ch] text-lg leading-relaxed">
@@ -101,22 +112,35 @@ function Hero() {
             The figures sit in the column the image cannot fill. `read.png` is 976 CSS
             pixels and is never scaled up, which leaves about 300px of the 1312px content
             width over — so it holds the four checkable numbers rather than air. Below
-            `lg` they stack under the image, where they read as a list. */}
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,61rem)_minmax(0,1fr)] lg:gap-12">
+            `xl` they stack under the image behind their own hairline, where they read as
+            a list. The `dl`'s breakpoints have to match the grid's: while they said `lg`
+            and the grid said `xl`, 1024–1280 stacked the figures AND removed the rule
+            that separates them from the image. */}
+        {/* `xl:`, NOT `lg:`, AND A FLOOR ON THE SECOND TRACK. Measured: at 1280 the figures
+            column was 128px and `25.0 MB` broke across two lines; at 1100 and below the
+            `<dt>` measured 0px wide and its content overflowed the track. The cause is
+            `minmax(0,61rem)` on the image — a 976px *maximum* the first track grows into,
+            taking the whole 976px content width at 1024 and leaving nothing. A figure that
+            wraps inside the number is the most visible way this page can look unfinished,
+            and 1024–1280 is a laptop rather than an edge case. */}
+        <div className="grid gap-10 xl:grid-cols-[minmax(0,61rem)_minmax(16rem,1fr)] xl:gap-12">
           <Shot
-            src="/shots/read.png"
-            width={1952}
-            height={1126}
+            name="read"
             priority
-            alt="A paste at /p/AerfZDG4: JavaScript with syntax highlighting and line numbers, lines 4 to 8 highlighted, above Copy link, Copy, Download and Fork buttons."
+            alt="A paste of a JavaScript retry helper, with syntax highlighting and line numbers, lines 4 to 8 highlighted, above Copy link, Copy, Download and Fork buttons."
             caption="Following a shared link needs no account. The line-range fragment never reaches the server."
-            href="/p/AerfZDG4#L4-L8"
+            href={`/p/${LIVE_SUBJECT_ID}#L4-L8`}
           />
 
-          <dl className="border-rule flex flex-col gap-7 border-t pt-7 sm:grid sm:grid-cols-2 lg:flex lg:border-t-0 lg:pt-0">
+          <dl className="border-rule flex flex-col gap-7 border-t pt-7 sm:grid sm:grid-cols-2 xl:flex xl:border-t-0 xl:pt-0">
             {FIGURES.map(({ value, label }) => (
               <div key={label} className="flex flex-col gap-1">
-                <dt className="num font-mono text-3xl">{value}</dt>
+                {/* `whitespace-nowrap` is the braces to the track floor's belt: a value
+                    may not break inside itself even if a future layout squeezes this
+                    column to nothing again. */}
+                <dt className="num font-mono text-3xl whitespace-nowrap">
+                  {value}
+                </dt>
                 <dd className="text-muted-foreground max-w-[24ch] text-sm leading-relaxed">
                   {label}
                 </dd>
@@ -124,6 +148,8 @@ function Hero() {
             ))}
           </dl>
         </div>
+
+        <p className="text-muted-foreground text-sm">{INVARIANT}</p>
       </div>
     </section>
   );
@@ -136,8 +162,7 @@ function Features() {
     <div className="container-page flex flex-col gap-24 py-24">
       <Feature
         index="01"
-        label="Before it exists"
-        title="A secret never reaches a URL"
+        title="A secret is refused before the paste exists"
         body={
           <>
             The scan runs <em className="text-ink not-italic">before</em> the
@@ -148,9 +173,7 @@ function Features() {
           </>
         }
         shot={{
-          src: "/shots/refused.png",
-          width: 2096,
-          height: 1678,
+          name: "refused" as const,
           alt: "The new-paste form holding an AWS config file. A panel reads This cannot be saved, Pattern that may indicate AWS credentials, line 3 column 21. The Save button is disabled.",
           caption:
             "Save refuses while the finding is live. The preview prints four characters at each end, never the secret.",
@@ -160,33 +183,29 @@ function Features() {
 
       <Feature
         index="02"
-        label="After it lapses"
         title="The identifier outlives the text"
         body={
           <>
             Every id that has ever existed keeps resolving. An expired paste
             answers <span className="font-mono">410</span> with a receipt — who
             made it, when, how large it was, and the SHA-256 of the bytes that
-            are gone — so anyone holding a local copy can prove it is the same
-            text. A link in a two-year-old ticket does not become a typo.
+            were destroyed — so anyone holding a local copy can prove it is the
+            same text. A lapsed link does not become a typo.
           </>
         }
         reverse
         shot={{
-          src: "/shots/expired.png",
-          width: 1456,
-          height: 894,
-          alt: "A 410 Gone page reading This snippet expired, with the creation date and owner, a size of 803 bytes over 17 lines, a SHA-256 digest, and the date the bytes are purged.",
+          name: "purged" as const,
+          alt: "A 410 Gone page reading This snippet is gone, with the creation date and owner, the size in bytes and lines, a SHA-256 digest, and the date the bytes were purged.",
           caption:
-            "The hash outlives the bytes, and so do the size, the owner and the dates.",
-          href: "/p/ShotExp1",
+            "The bytes are destroyed. The hash, the size, the owner and the dates are not.",
+          href: `/p/${PURGED_SUBJECT_ID}`,
         }}
       />
 
       <Feature
         index="03"
-        label="At the moment of saving"
-        title="You pick the lifetime, and you see the date"
+        title="You see both dates before you save"
         body={
           <>
             Retention is chosen once, at create, and the panel shows both
@@ -198,12 +217,14 @@ function Features() {
           </>
         }
         shot={{
-          src: "/shots/retention.png",
-          width: 816,
-          height: 918,
-          alt: "A panel headed Before it gets a link, showing an expiry date of 19 December 2026 with its time and purge date, then rows for secrets, language, size and highlighting.",
+          name: "retention" as const,
+          // NO DATE IN THE ALT TEXT. It said "19 December 2026", which the capture had already
+          // stopped showing: the seeded subjects' clock is relative to now, so any date named
+          // here drifts the next time `pnpm shots` runs and the description silently stops
+          // matching the image for the readers who depend on it most.
+          alt: "A panel headed Before it gets a link, showing the expiry date and time, the purge date, and rows for secrets, language, size and highlighting.",
           caption:
-            "Shown before saving, because afterwards it is not yours to change.",
+            "The purge date is 30 days after the expiry date, so a lapsed paste stays recoverable for a month.",
           href: "/new?sample=python",
         }}
       />
@@ -255,18 +276,16 @@ function Limits() {
 
 function Feature({
   index,
-  label,
   title,
   body,
   shot,
   reverse = false,
 }: {
   index: string;
-  label: string;
   title: string;
   body: React.ReactNode;
   shot: Omit<React.ComponentProps<typeof Shot>, "priority">;
-  /** Put the copy on the right at `lg`, so three sections do not read as a list. */
+  /** Put the copy on the right at `xl`, so three sections do not read as a list. */
   reverse?: boolean;
 }) {
   return (
@@ -276,25 +295,30 @@ function Feature({
     // images close to their natural size at 1440.
     //
     // THE TRACK SIZES SWAP WITH THE ORDER, which is the bug this comment is here to stop
-    // coming back. Reversing with `lg:order-2` alone moves the copy into the second track
+    // coming back. Reversing with `xl:order-2` alone moves the copy into the second track
     // and leaves the image in the 20rem one — the 410 receipt rendered at 318px, which is
     // a thumbnail of a page rather than a readable screenshot. The image has to stay in
     // the `1fr` track whichever side it is on.
     <section
-      className={`grid items-center gap-10 lg:gap-16 ${
+      className={`grid items-center gap-10 xl:gap-16 ${
         reverse
-          ? "lg:grid-cols-[minmax(0,1fr)_20rem]"
-          : "lg:grid-cols-[20rem_minmax(0,1fr)]"
+          ? "xl:grid-cols-[minmax(0,1fr)_20rem]"
+          : "xl:grid-cols-[20rem_minmax(0,1fr)]"
       }`}
     >
-      <div className={`flex flex-col gap-5 ${reverse ? "lg:order-2" : ""}`}>
-        <p className="text-muted-foreground flex items-baseline gap-3 font-mono text-xs tracking-[0.12em] uppercase">
-          <span className="text-brand">{index}</span>
-          {label}
-        </p>
-        <h2 className="max-w-[24ch] text-[1.75rem] leading-tight font-semibold tracking-[-0.02em]">
-          {title}
-        </h2>
+      <div className={`flex flex-col gap-5 ${reverse ? "xl:order-2" : ""}`}>
+        {/* THE INDEX SITS BESIDE THE HEADING, not above it. It used to be a mono
+            uppercase kicker — `01 BEFORE IT EXISTS` — which is the craft floor's one marked
+            ban, and a pinned brief does not earn a ban back. The chronology those labels
+            carried was real, so it moved into the headings themselves ("before the paste
+            exists", "outlives", "before you save") and the number stayed as a sequence
+            marker on the heading's own baseline. */}
+        <div className="flex items-baseline gap-3">
+          <span className="text-brand font-mono text-xs">{index}</span>
+          <h2 className="max-w-[24ch] text-[1.75rem] leading-tight font-semibold tracking-[-0.02em]">
+            {title}
+          </h2>
+        </div>
         <p className="text-ink-2 max-w-[52ch] leading-relaxed">{body}</p>
       </div>
 
@@ -333,23 +357,26 @@ function Feature({
  * These ones are one click from the route that produced them.
  */
 function Shot({
-  src,
-  width,
-  height,
+  name,
   alt,
   caption,
   href,
   priority = false,
 }: {
-  src: string;
-  width: number;
-  height: number;
+  /** A key of the generated manifest, which supplies the file and its real dimensions. */
+  name: ShotName;
   alt: string;
   caption: string;
   /** The live route this was captured from. */
   href: string;
   priority?: boolean;
 }) {
+  // READ, NOT DECLARED. These were four hand-written `width`/`height` pairs until the
+  // retention panel's capture changed shape and its pair did not — rendering that
+  // screenshot at 0.44x with a reserved box the wrong aspect. `pnpm shots` emits the
+  // manifest, so the numbers cannot disagree with the files again.
+  const { file, width, height } = SHOT_SIZES[name];
+  const src = `/shots/${file}`;
   return (
     // NEVER WIDER THAN IT WAS CAPTURED, and this cap is the difference between a page
     // that looks photographed and one that looks mocked up. The first version let each
@@ -372,14 +399,23 @@ function Shot({
           height={height}
           alt={alt}
           priority={priority}
-          sizes={`(min-width: 1024px) ${width / 2}px, 100vw`}
-
+          sizes={`(min-width: 1280px) ${width / 2}px, 100vw`}
           className="border-rule hover:border-ink-2/40 h-auto w-full rounded-lg border transition-colors"
         />
       </Link>
+      {/* THE ROUTE IS A LINK NOW. It used to be inert text in the caption while the image
+          above was the only anchor — so the one element that LOOKED clickable was not one,
+          and the image's sole affordance was a 1px border that changed colour on hover.
+          Pointer users got nothing at rest and touch users nothing at all, on a page whose
+          thesis is that a sceptic can check any of this in a second. */}
       <figcaption className="text-muted-foreground max-w-[60ch] text-xs leading-relaxed">
         {caption}{" "}
-        <span className="text-ink-2 font-mono whitespace-nowrap">{href}</span>
+        <Link
+          href={href}
+          className="text-ink-2 hover:text-ink font-mono whitespace-nowrap underline underline-offset-2"
+        >
+          {href} →
+        </Link>
       </figcaption>
     </figure>
   );
@@ -437,9 +473,18 @@ function Footer() {
     <footer className="border-rule border-t">
       <div className="container-page flex flex-col gap-10 py-16">
         <div className="flex flex-col gap-5">
-          <p className="max-w-[34ch] text-2xl leading-tight font-semibold tracking-[-0.02em]">
-            Paste something. The link will still be answering in two years.
-          </p>
+          {/* AN `h2` AT THE ESTABLISHED SIZE, not a one-off 24px `<p>`: this is the page's
+              closing beat and the only one that had no heading, while 1.5rem semibold
+              appeared exactly once in the whole scale.
+
+              AND THE CLAIM IS NOW ABOUT THE MECHANISM. It read "the link will still be
+              answering in two years" — an uptime promise about a service with no users and
+              no SLA, which PRODUCT.md forbids and which is the first line a sceptical
+              developer would point at. What is true and checkable is that the id keeps
+              resolving once the text is gone. */}
+          <h2 className="max-w-[40ch] text-[1.75rem] leading-tight font-semibold tracking-[-0.02em]">
+            Paste something. The id keeps resolving after the text is gone.
+          </h2>
           <div className="flex flex-wrap gap-3">
             <Button asChild>
               <Link href="/new">New paste</Link>
@@ -462,5 +507,5 @@ function Footer() {
 export const metadata = {
   title: "Paste — paste once, the link keeps answering",
   description:
-    "A pastebin that refuses credentials before they get a URL, and whose links answer forever — with a receipt instead of a 404.",
+    "A pastebin that refuses credentials before they get a URL. When a paste lapses the id keeps resolving — a receipt with its SHA-256, never a 404.",
 };

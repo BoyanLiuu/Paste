@@ -431,8 +431,18 @@ Three properties are load-bearing:
    1:1 or slightly under and the UI inside it is the size the UI is. Letting images fill
    their column put one at 0.6x and another at 1.5x, and the page read as three different
    products.
-3. **Linked to its route.** The image is a link. It makes the claim checkable, and it is
-   the answer to a 390px viewport, where any desktop screenshot is an illegible thumbnail.
+3. **Linked to its route, visibly.** Both the image and the route printed in the caption
+   are links. The route was inert text outside the anchor at first, so the one element that
+   looked clickable was not one and the image's only affordance was a border that changed on
+   hover — nothing at rest for a pointer, nothing at all for touch.
+4. **Its subject is seeded, and visibly synthetic.** Every screenshot's paste is created by
+   `pnpm shots:seed` under the `shots-demo` owner. The first version photographed a real row
+   in one developer's database, which put a real personal handle in the hero of a public page
+   and made `pnpm shots` fail everywhere else.
+5. **Its dimensions are generated, not declared.** `pnpm shots` writes
+   `shot-sizes.generated.ts` and the page reads it. Hand-written pairs went stale within an
+   afternoon: a layout fix reshaped one capture and its declaration did not follow, rendering
+   that screenshot at 0.44x in a box of the wrong aspect.
 
 ### Loading placeholders
 

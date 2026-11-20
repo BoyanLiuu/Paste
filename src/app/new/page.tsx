@@ -86,6 +86,16 @@ async function Samples({
       aria-label="Sample pastes"
       className="flex flex-wrap items-baseline gap-2 text-sm"
     >
+      {/* The LABEL stays muted and the OPTIONS do not. Every item in this row was
+          `text-muted-foreground` with a transparent border until hover, so the lead-in was
+          indistinguishable from the five choices and nothing looked clickable at rest —
+          the third home these links have had, and still hard to find.
+
+          THREE DIFFERENCES MARK THE CURRENT ONE, not one. Giving the unselected options a
+          visible border fixed the affordance and broke the selected state, which had been
+          signalled by the border's mere presence — so it came to rest on a single step of
+          paper tier. The current option now carries the brighter rule, the raised paper and
+          full-strength ink; the rest sit at half-strength rule and `--ink-2`. */}
       <span className="text-muted-foreground">Or start from</span>
       {Object.entries(SAMPLE_BODIES).map(([key, { label }]) => {
         const current = key === sample;
@@ -96,8 +106,8 @@ async function Samples({
             aria-current={current ? "true" : undefined}
             className={
               current
-                ? "border-rule bg-card rounded-md border px-2.5 py-1"
-                : "text-muted-foreground hover:text-ink border-rule/0 hover:border-rule rounded-md border px-2.5 py-1 transition-colors"
+                ? "border-rule-2 bg-card text-ink rounded-md border px-2.5 py-1"
+                : "text-ink-2 hover:text-ink border-rule/50 hover:border-rule rounded-md border px-2.5 py-1 transition-colors"
             }
           >
             {label}

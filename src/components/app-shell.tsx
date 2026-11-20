@@ -26,8 +26,9 @@ export function AppShell({
   current: "new" | "pastes" | "moderation" | null;
   children: React.ReactNode;
   /** Drop the centred container and its padding, for a surface that composes its own
-   *  full-width regions. The home page's first viewport is a split that reaches both
-   *  edges; every other route wants the measured column. */
+   *  full-width regions. The landing page's section bands are hairline-ruled edge to edge
+   *  and each one re-establishes the measured column inside itself; every other route
+   *  wants that column once, here. */
   bleed?: boolean;
 }) {
   return (

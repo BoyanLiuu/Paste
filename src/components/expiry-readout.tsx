@@ -11,6 +11,14 @@ import type { RetentionCode } from "@/lib/types";
 // The "Before it gets a link" panel. Retention is the most consequential control in
 // the product and the one users ignore, so the animation is on the *consequence* — the
 // date this link stops answering — and never on the select itself (Appendix E).
+//
+// NO `self-start` HERE, and the removal is the fix for a measured layout bug. The wrapper in
+// `create-form.tsx` carries it, where the parent is a GRID and it correctly means "do not
+// stretch to the row's height". On this element the parent is that wrapper — a flex column —
+// so `align-self` acts on the CROSS axis, which is horizontal: the panel shrank to its 526px
+// content width inside an 852px column, leaving 326px of dead space on every viewport between
+// the stacking point and `lg`. It also distorted the landing page's screenshot of this panel,
+// and the capture script was adjusted around the symptom before anyone found the cause.
 
 /** COUNTED, NOT WRITTEN DOWN. Appendix H: a number typed into copy goes stale silently,
  *  which is exactly how the line at the foot of this panel came to claim the scanner was
@@ -40,7 +48,7 @@ export function ExpiryReadout({
   const purgeAt = expiresAt === null ? null : expiresAt + PURGE_GAP_MS;
 
   return (
-    <aside className="bg-card border-rule flex flex-col gap-4 self-start rounded-lg border p-6">
+    <aside className="bg-card border-rule flex flex-col gap-4 rounded-lg border p-6">
       <h2 className="text-md">Before it gets a link</h2>
 
       <div className="flex flex-col gap-1">

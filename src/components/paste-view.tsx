@@ -228,7 +228,7 @@ function ForkRefused({ problem }: { problem: ForkProblem }) {
   return <Banner role="status">{message[problem]}</Banner>;
 }
 
-export function RedactionNotice({ paste }: { paste: Paste }) {
+function RedactionNotice({ paste }: { paste: Paste }) {
   const redaction = paste.revisions.find((r) => r.reason === "redaction");
   const original = paste.revisions.find((r) => r.reason === "original");
   if (redaction === undefined || original === undefined) return null;

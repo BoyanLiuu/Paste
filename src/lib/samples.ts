@@ -95,7 +95,10 @@ export const SAMPLE_BODIES: Readonly<Record<string, Sample>> = {
     // separately built a body of `MAX_BYTES * 1.1`, which replaced one duplication with
     // another: two places deciding how far over the cap to go, free to disagree and make
     // the label lie again. The builder lives here now and the label measures its output.
-    label: `${formatBytes(oversizedBodyBytes())} of log`,
+    // NAMES ITSELF AS THE OVER-CAP CASE. "27.5 MB of log" sat directly above the form's own
+    // "Up to 25.0 MB", so it read as a contradiction rather than as the refusal this sample
+    // exists to demonstrate.
+    label: `${formatBytes(oversizedBodyBytes())} — over the cap`,
     title: "",
     oversized: true,
   },

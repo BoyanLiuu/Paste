@@ -28,6 +28,17 @@ export default defineConfig({
   // designs ux-55 – ux-58 for them.
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },
+    // 1280 EXACTLY, because that is where the landing page broke and nothing noticed.
+    // `Desktop Chrome` is 1280x720, so the suite was already running there — but axe does
+    // not flag a figure wrapping mid-number, and nothing else measured layout. This project
+    // adds the one assertion that does, at the width where two-column grids hand over.
+    {
+      name: "laptop",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 1280, height: 900 },
+      },
+    },
     { name: "phone", use: { ...devices["Pixel 7"] } },
   ],
   webServer: {
