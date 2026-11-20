@@ -7,6 +7,7 @@ import { NothingToFork } from "@/lib/server/fork";
 import { forkPaste } from "@/lib/server/mutations";
 import { getViewer } from "@/lib/server/session";
 import { NotPermittedError } from "@/lib/server/viewer";
+import { sameOrigin } from "@/lib/http/same-origin";
 
 // POST /p/:id/fork — forking, as a route rather than a server action (ux-19, 25).
 //
@@ -33,13 +34,8 @@ export async function POST(
   const { id } = await params;
 
   // SAME-ORIGIN ONLY, and this is the cost of the deviation above rather than an extra.
-  //
-  // Next checks the Origin of a Server Action for exactly this reason; a route handler gets
-  // no such check, so moving fork off an action to keep Shiki out of the view page's graph
-  // silently dropped it. Without this, any page anywhere can POST a form at this URL and a
-  // signed-in reader's browser attaches their session — so a third party decides what
-  // pastes they create. Measured: a POST carrying `Origin: https://evil.example` was
-  // answered 303.
+  // `same-origin.ts` carries the reasoning; it moved there when /sign-out became the second
+  // route handler needing the identical check.
   if (!sameOrigin(request)) {
     // 403 AND NOT a redirect. A redirect would be followed by the attacker's page and tell
     // them what happened; there is also nothing to show a victim, since no browser asked
@@ -83,41 +79,6 @@ export async function POST(
  */
 function seeOther(location: string): NextResponse {
   return new NextResponse(null, { status: 303, headers: { location } });
-}
-
-/**
- * Whether a browser on this site sent this, as opposed to a page somewhere else.
- *
- * `Origin` is set by the browser on every cross-site form POST and cannot be forged by the
- * page making the request — which is the whole basis of the check. Compared against
- * `PASTE_ORIGIN` when deployment pins it, and otherwise against the request's own host.
- *
- * A REQUEST WITH NO ORIGIN IS ALLOWED, deliberately. `curl` sends none, and it also carries
- * no ambient session cookie, so it is not the threat — the threat is a victim's browser
- * acting on someone else's instruction, and that browser always sends the header. Refusing
- * header-less requests would break every non-browser caller to stop nobody.
- */
-function sameOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  if (origin === null) return true;
-
-  const pinned = process.env.PASTE_ORIGIN;
-  if (pinned !== undefined) {
-    try {
-      return new URL(origin).origin === new URL(pinned).origin;
-    } catch {
-      return false;
-    }
-  }
-
-  // No pin: compare hosts. A forged `Host:` defeats this, and a forged Host means the
-  // caller is not a victim's browser — which is the only thing this check is about.
-  const host = request.headers.get("host");
-  try {
-    return host !== null && new URL(origin).host === host;
-  } catch {
-    return false;
-  }
 }
 
 /**

@@ -107,10 +107,17 @@ async function MyPastesLink({ active }: { active: boolean }) {
  * A signed-out visitor is a first-class state and not an error: reads are public (§3), so
  * most people who ever see this header will see the signed-out version of it.
  *
- * Deliberately NOT Clerk's `<UserButton>`. That is a client component, and it would load
- * `clerk.browser.js` on every page including the view page — a remote third-party script
- * on the one page that renders attacker-supplied text, which §6.5 exists to prevent. The
- * username is plain server-rendered text, and signing out is a link to Clerk's own page.
+ * Deliberately NOT Clerk's `<UserButton>`, and the same reasoning rules out
+ * `<SignOutButton>`. Both are client components, and this header renders on EVERY route —
+ * so either would load `clerk.browser.js` on `/p/:id`, a remote third-party script on the
+ * one page whose job is rendering attacker-supplied text. §6.5 exists to prevent that, and
+ * N11 budgets one client module on that route which `body-tools.tsx` already spends.
+ *
+ * SIGNING OUT IS A FORM POST, which is how it stays server-only. This comment used to say
+ * "signing out is a link to Clerk's own page" and no such control existed for three
+ * milestones: the header printed a username and offered no way out of the session.
+ * `/sign-out` is a route handler, so there is nothing to import and no JavaScript involved;
+ * it carries the reasoning for why the method is POST rather than GET.
  */
 async function AccountSlot() {
   const viewer = await getViewer();
@@ -124,9 +131,32 @@ async function AccountSlot() {
   }
 
   return (
-    <>
-      Signed in as <span className="text-brand">{viewer.user.username}</span>
-    </>
+    <div className="flex items-center gap-3">
+      <span>
+        Signed in as <span className="text-brand">{viewer.user.username}</span>
+      </span>
+
+      {/* A hairline separator rather than a border on the button: the account slot is two
+          facts, not a control group. */}
+      <span aria-hidden="true" className="bg-rule h-3.5 w-px" />
+
+      <form method="post" action="/sign-out">
+        {/* A SUBMIT BUTTON STYLED AS A LINK, which is the honest pairing. It reads like the
+            "Sign in" link opposite it because it does the opposite thing, and it is a
+            `<button>` because it performs an action rather than navigating — so a screen
+            reader announces it correctly and a middle-click cannot open it in a tab.
+
+            No `<Button>` primitive: every variant of it is a filled or bordered control,
+            and a 14px chrome slot carrying a bordered button next to plain text reads as a
+            dialog. */}
+        <button
+          type="submit"
+          className="hover:text-ink cursor-pointer underline underline-offset-2"
+        >
+          Sign out
+        </button>
+      </form>
+    </div>
   );
 }
 
