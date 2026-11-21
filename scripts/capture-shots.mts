@@ -53,6 +53,16 @@ interface Shot {
   /** Text that must be on screen before the shutter opens. */
   readonly waitFor: string;
   readonly prepare?: (page: Page) => Promise<void>;
+  /**
+   * A state that only exists after a write, so the shot creates one and redirects itself.
+   *
+   * DECLARED RATHER THAN RECOGNISED. The first version was `if (shot.name === "receipt")`
+   * in the loop, which couples the setup to a string: rename the shot and the branch
+   * silently stops firing. It would have failed loudly — `waitFor` would time out on a
+   * state that never arrives — but failing loudly for the wrong reason still costs
+   * somebody an afternoon.
+   */
+  readonly seed?: (page: Page) => Promise<string>;
 }
 
 const SHOTS: readonly Shot[] = [
@@ -104,6 +114,70 @@ const SHOTS: readonly Shot[] = [
     width: 1120,
     height: 1100,
     waitFor: "This cannot be saved",
+  },
+  {
+    // THE RECEIPT A GUEST GETS, which is the only evidence that anonymous creation works.
+    // The landing page asserted it in three sentences and showed it nowhere — on a page
+    // whose whole thesis is that the evidence is photographs of the product.
+    //
+    // ITS OWN GUEST, CREATED IN THIS CONTEXT. The receipt renders only for a viewer who
+    // owns the paste (`mayShowSavedReceipt`), so this shot cannot be taken by navigating to
+    // a `?saved=` URL — the browser has to hold the guest cookie. The loop below posts a
+    // paste from this page's own context before navigating, which is what sets it; `path`
+    // above is the pre-redirect URL and is rewritten there.
+    // SHOWS A `localhost` URL UNTIL M13 PICKS A DOMAIN, and that is worth knowing before
+    // this ships rather than after. The receipt prints the ABSOLUTE url — that is its whole
+    // purpose — which `originFor` builds from `PASTE_ORIGIN` or, failing that, the request
+    // host. Captured against `pnpm dev` the host is `localhost:3025`, so the shipped image
+    // reads `http://localhost:3025/p/…`.
+    //
+    // NOT WORKED AROUND WITH A FAKE DOMAIN. Setting `PASTE_ORIGIN=https://paste.example`
+    // for the capture would put an origin nobody owns into marketing imagery, which is the
+    // same species of invention PRODUCT.md's Evidence section forbids. The honest fix is to
+    // re-run `pnpm shots` once the real domain exists — which is precisely what the
+    // regenerable-screenshot design is for, and the first thing it has been needed for.
+    name: "receipt",
+    path: "/new",
+    // The panel itself. `main > div` is the page's full-width wrapper, and the receipt is
+    // `max-w-2xl` inside it — so that clip came out 40% empty on the right.
+    clip: "main section",
+    width: 1120,
+    height: 900,
+    waitFor: "Saved without an account",
+    seed: async (page) => {
+      // Posted from THIS page's context, which is what sets the guest cookie the receipt
+      // requires — `mayShowSavedReceipt` renders it only for a viewer who owns the paste,
+      // so no amount of navigating to a `?saved=` URL would do.
+      //
+      // COSTS ONE GUEST AND ONE PASTE PER CAPTURE RUN, which accumulate. Accepted rather
+      // than cleaned up: deleting them would leave the shipped screenshot picturing a
+      // paste that no longer exists, and `pnpm shots` is a deliberate command run rarely.
+      // Seeding a fixed subject instead — as `shots:seed` does for the other four — would
+      // mean a guest token committed to source, which is a credential in a repository to
+      // avoid a handful of rows.
+      const created = await page.request.post(`${ORIGIN}/api/pastes`, {
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        data: {
+          body:
+            "export AWS_REGION=eu-west-1\n" +
+            "export LOG_LEVEL=debug\n" +
+            "\n" +
+            "# The deploy script reads DATABASE_URL from the environment.\n",
+          retention: "30d",
+          language: "bash",
+        },
+      });
+
+      if (!created.ok()) {
+        throw new Error(`the receipt's paste answered ${created.status()}`);
+      }
+
+      const { id } = (await created.json()) as { id: string };
+      return `/new?saved=${id}`;
+    },
   },
   {
     // The retention panel: the expiry and purge dates, before the paste has a link.
@@ -309,10 +383,14 @@ async function main() {
 
   const failures: string[] = [];
 
-  for (const shot of SHOTS) {
+  for (let shot of SHOTS) {
     const page = await context.newPage();
     try {
       await page.setViewportSize({ width: shot.width, height: shot.height });
+
+      // A shot whose state needs a write makes it, and says where the result lives.
+      if (shot.seed !== undefined)
+        shot = { ...shot, path: await shot.seed(page) };
 
       const response = await page.goto(`${ORIGIN}${shot.path}`, {
         waitUntil: "domcontentloaded",

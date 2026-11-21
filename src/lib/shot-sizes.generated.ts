@@ -11,8 +11,9 @@
 export const SHOT_SIZES = {
   purged: { file: "purged.eed6b469b8.png", width: 1456, height: 894 },
   read: { file: "read.23849e0778.png", width: 1952, height: 1514 },
-  refused: { file: "refused.a1dfe00a2a.png", width: 2096, height: 1679 },
-  retention: { file: "retention.b7681fc6cb.png", width: 1856, height: 847 },
+  receipt: { file: "receipt.2eccb00ebf.png", width: 1456, height: 834 },
+  refused: { file: "refused.430910396f.png", width: 2096, height: 1679 },
+  retention: { file: "retention.ed3aac4439.png", width: 1856, height: 847 },
 } as const satisfies Record<
   string,
   { file: string; width: number; height: number }

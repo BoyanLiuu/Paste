@@ -257,8 +257,17 @@ The ramp is a 1.2 step: `0.75 / 0.875 / 1 / 1.2 / 1.44 / 1.728 / 2.074rem`. Head
 weight 500, `letter-spacing: -0.03em`, `line-height: 1.05`, `text-wrap: balance` and a
 character-count max-width.
 
-- **Display** (500, 1.728rem, 1.05, max 20ch): the `h1` on every route — a tombstone
+- **Display** (500, 1.728rem, 1.05, max 20ch): the `h1` on every app route — a tombstone
   headline, a page title, the save confirmation.
+- **Marketing display** (600, 2.5rem → 3.5rem at `sm`, 1.05, `-0.03em`, balanced): the `h1`
+  on `/` and nowhere else, two steps above the ramp's top. The landing page is the one
+  surface whose job is to be read by someone who has not decided to use the product yet, and
+  at 1.728rem its headline sat level with the section headings beneath it. Recorded here
+  because it is off the 1.2 ladder on purpose: the detector flags both literals, and the
+  answer is that the ramp governs app routes.
+- **Section headline, marketing** (600, 1.75rem, 1.2, max 24ch): the `h2` on `/`, a hair
+  above Headline's 1.728rem so the landing page's own hierarchy has room under a 3.5rem
+  display.
 - **Headline** (500, 1.2rem, 1.05, max 30ch): `h2`, section and panel headings.
 - **Title** (500, 1rem, 1.2, max 40ch): `h3`, the smallest named heading.
 - **Body** (400, 1rem, 1.55): prose, in `--ink-2`, held to a 62–70ch measure where it runs
@@ -453,13 +462,50 @@ a defect, not a shortcut.
 
 ### Motion
 
+**Scroll reveal, landing page only.** A named CSS `view-timeline` on each feature section,
+gated behind `@supports` and `prefers-reduced-motion: no-preference`. Four properties are
+load-bearing:
+
+1. **No JavaScript.** The landing page ships zero client components; a `whileInView` from
+   `motion/react` would make every feature section one.
+2. **`@supports` or nothing.** Where `animation-timeline` is unsupported the browser ignores
+   the timeline and still runs the animation on a normal clock — every section would animate
+   at once on load, including those four screens down. Gating the block gives those browsers
+   static, fully visible content, which is correct for decoration.
+3. **The section owns the timeline, not the elements.** `view-timeline-name: --feature` on
+   the `<section>`; both tracks animate against it. The anonymous `view()` form measures each
+   element's own box, and because a screenshot is ~500 px tall against ~200 px of copy that
+   `items-center` lifts, the shot's phase began _first_ — the stagger ran backwards and no
+   range offset could fix it. A shared phase is also five times longer than the copy's own,
+   which is what makes the movement visible at all. Measured, not inferred:
+   `tests/e2e/landing-motion.e2e.ts`.
+4. **No duration token, and that is not a breach of the 90–200 ms band.** A scroll-driven
+   animation has no time duration: `animation-range` ties progress to the element's travel
+   through the viewport, so the speed is the reader's scroll speed. The curve is
+   **`--ease-scroll` (`cubic-bezier(0.33, 1, 0.68, 1)`), the system's only second easing
+   token and valid for scroll-driven motion alone.** An ease-in against scroll position does
+   read as lag, so a deceleration is right — but `--ease-out` is an exponential tuned for
+   120 ms and against a scroll position it spent ~85% of its travel in the first 60 px of
+   scrolling, collapsing the reveal into a snap with a long invisible settle. A cubic
+   ease-out decelerates as plainly over a distance a reader actually crosses (~320 px,
+   measured). Never use it for a timed transition; the band still owns those.
+5. **Fade and slide run on separate ranges.** Each revealed element carries two animations:
+   `reveal-fade` finishes at `entry 40%`, `reveal-from-left`/`-right` keeps travelling to
+   `entry 90%`. Folding opacity into the slide left text translucent at the moment it became
+   readable, which is the objection to entrance animation below rather than an exception to
+   it. A section's screenshot trails its copy by 10% of the entry phase, so the sentence
+   leads and its evidence follows; `animation-timeline` is declared once per animation,
+   because a single `view()` against two names leaves the second on the document clock and
+   fires it four screens early.
+
 Motion is scoped to the moments where it carries information the reader would otherwise
 have to reconstruct, and the doctrine lives in ARCHITECTURE.md Appendix E. The budget is
 **90–200 ms, `--ease-out` (`cubic-bezier(0.16, 1, 0.3, 1)`), opacity and colour before
 layout, no springs on anything containing text, and nothing that moves layout while a
 pointer or caret is inside it**. Durations are tokenised as `--dur-micro` (120ms) and
 `--dur-short` (180ms); the prototype's 420ms and its ease-in curves were deliberately not
-ported, because a token that is wrong to use is worse than an absent one.
+ported, because a token that is wrong to use is worse than an absent one. `--ease-scroll` is
+the one easing token outside the band, and it carries that restriction in its own comment.
 
 - Expiry date crossfade, 120 ms, opacity only (`AnimatePresence mode="popLayout"`).
 - Findings panel expands from zero height, 180 ms; each finding fades in staggered 40 ms.
@@ -468,10 +514,11 @@ ported, because a token that is wrong to use is worse than an absent one.
 - **The save receipt is the one carve-out at 900 ms** — a 2rem rise and fade on
   `cubic-bezier(0.22, 1, 0.36, 1)`, one gesture for one irreversible event, borrowed from
   `boyanliu.me`'s sent state so the two screens are the same gesture.
-- **Nothing animates on the view page or the 410 tombstone**, and the home page is
-  **motionless by decision**: its own composition has no entrance, scroll or reveal
-  animation, only the hover colour changes of its controls. Text that fades in is text that
-  was slower to read.
+- **Nothing animates on the view page or the 410 tombstone.** The home page is no longer
+  motionless — its feature sections reveal on scroll, at the user's request on 20 Nov 2026 —
+  but it still has **no load entrance**: the hero is fully rendered and fully opaque in the
+  first frame. Text that fades in is text that was slower to read, which is why the reveal
+  finishes fading before the slide finishes moving.
 - JS motion gates on `useReducedMotion`; CSS motion is caught by one global
   `prefers-reduced-motion: reduce` query that collapses every animation and transition to
   0.01ms with `!important` on the universal selector (near-zero rather than `none`, so
@@ -529,8 +576,13 @@ cannot compete with the page's own.
 - **Don't** introduce a motion token outside the 90–200 ms ease-out band, or a spring on
   anything containing text. The 900 ms save receipt is the only carve-out and it is already
   documented.
-- **Don't** animate the view page or the 410 tombstone, and don't add an entrance or
-  scroll-reveal animation to the home page.
+- **Don't** animate the view page or the 410 tombstone. Both still animate nothing, for
+  reasons that have not changed: one renders attacker-supplied text, and the other has to be
+  believed by someone reading a two-year-old ticket.
+- **The landing page's scroll reveal is the exception**, added at the user's request on
+  20 Nov 2026 — this line previously forbade it outright. Its feature sections arrive from
+  the edge they sit nearest, and the direction follows the visual side rather than the DOM
+  order, so a mirrored section does not slide in from where it already is. See Motion.
 - **Don't** put more than one amber-filled primary action in a region, and don't leave a
   quoted component's primary fill intact.
 - **Don't** invent customers, logos, testimonials, counts or traffic figures as visual

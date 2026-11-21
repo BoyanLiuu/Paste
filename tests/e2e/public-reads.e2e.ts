@@ -1,3 +1,4 @@
+import { SHOT_SIZES } from "../../src/lib/shot-sizes.generated";
 import { expect, test } from "@playwright/test";
 
 // The matcher mistake that breaks the premise (ARCHITECTURE §2, §3).
@@ -56,13 +57,18 @@ test.describe("signed out", () => {
     // `next/image` rewrites the attribute to `/_next/image?url=%2Fshots%2Fread.png&w=…`,
     // so the path is there but percent-encoded. Matching the figure is both stable
     // against that and the thing actually being asserted — a screenshot with a caption.
+    // COUNTED FROM THE MANIFEST, NOT TYPED. This said `toHaveCount(4)` and went red the
+    // moment the page gained a fifth screenshot — a correct failure, but about the number
+    // rather than about anything being wrong. `pnpm shots` writes the manifest, so the
+    // expected count is whatever was captured, and adding a shot stops being a test edit.
+    const expected = Object.keys(SHOT_SIZES).length;
     const shots = page.locator("main figure img");
-    await expect(shots).toHaveCount(4);
+    await expect(shots).toHaveCount(expected);
 
     // DECODED, not merely present. A 404 on the image still produces an `<img>` in the
     // DOM with a measurable box, so `toBeVisible` passes on a broken one — and on this
     // page a broken box is the whole argument missing.
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < expected; i += 1) {
       const loaded = await shots
         .nth(i)
         .evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0);

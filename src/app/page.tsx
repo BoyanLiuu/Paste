@@ -90,9 +90,9 @@ function Hero() {
             Paste it once. The link keeps answering.
           </h1>
           <p className="text-ink-2 max-w-[46ch] text-lg leading-relaxed">
-            A credential is refused before it has a URL. A lapsed paste answers
-            with a receipt instead of a 404. Nothing is editable, by anyone,
-            ever.
+            No account needed. A credential is refused before it has a URL. A
+            lapsed paste answers with a receipt instead of a 404. Nothing is
+            editable, by anyone, ever.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild size="lg">
@@ -103,15 +103,10 @@ function Hero() {
             </Button>
           </div>
 
-          {/* THE NEW FACT, next to the button it changes (M15). Creating used to require a
-              session; it no longer does, which is the single thing a visitor deciding
-              whether to bother most wants to know. Beside the control rather than in the
-              sub-copy above, because it is a property of clicking that button — and the
-              second sentence is there so it does not read as "and nothing is kept", which
-              is what "no account needed" implies on most sites. */}
-          <p className="text-muted-foreground text-sm">
-            No account needed to create one. Sign in to keep it in yours.
-          </p>
+          {/* IN THE SUB-COPY NOW, NOT A 14px LINE UNDER THE BUTTONS. It sat there as the
+              quietest thing in the first viewport while being the fact most likely to
+              decide whether someone clicks — and section 01 below now carries the evidence
+              for it, so the hero only has to state it. */}
         </div>
 
         {/* THE PRODUCT, IN THE FIRST VIEWPORT, WITH THE FIGURES BESIDE IT.
@@ -170,8 +165,37 @@ function Hero() {
 function Features() {
   return (
     <div className="container-page flex flex-col gap-24 py-24">
+      {/* FIRST, BECAUSE IT IS THE ONE THAT CHANGES WHETHER SOMEONE BOTHERS. The three
+          sections after it are the mechanisms PRODUCT.md names as the product's
+          positioning; this one is the precondition for ever seeing them, and it was the
+          only claim on the page asserted in prose and shown nowhere — on a page whose
+          whole thesis is that its evidence is photographs. The receipt IS the proof.
+
+          The copy's job is to stop "no account needed" reading as "and nothing is kept",
+          which is what it means on most sites. */}
       <Feature
-        index="01"
+        title="No account needed to start"
+        body={
+          <>
+            A signed-out visitor saves a paste and gets a working link
+            immediately — the scanner, the retention choice and the permanent id
+            all behave exactly as they do for an account. Signing in afterwards{" "}
+            <em className="text-ink not-italic">claims</em> the paste rather
+            than saving it: it joins your list, and you can ask for its removal.
+            Without one it is linked from that browser alone, and only a
+            moderator can remove it.
+          </>
+        }
+        shot={{
+          name: "receipt" as const,
+          alt: "A receipt reading Saved, with a note that the paste was saved without an account and a sign-in link to keep it, above the paste's absolute URL and View paste and Copy link buttons.",
+          caption:
+            "The paste is already saved when this appears. Signing in changes who owns it, not whether it exists.",
+          href: "/new",
+        }}
+      />
+
+      <Feature
         title="A secret is refused before the paste exists"
         body={
           <>
@@ -192,7 +216,6 @@ function Features() {
       />
 
       <Feature
-        index="02"
         title="The identifier outlives the text"
         body={
           <>
@@ -214,7 +237,6 @@ function Features() {
       />
 
       <Feature
-        index="03"
         title="You see both dates before you save"
         body={
           <>
@@ -285,13 +307,11 @@ function Limits() {
 }
 
 function Feature({
-  index,
   title,
   body,
   shot,
   reverse = false,
 }: {
-  index: string;
   title: string;
   body: React.ReactNode;
   shot: Omit<React.ComponentProps<typeof Shot>, "priority">;
@@ -310,29 +330,38 @@ function Feature({
     // a thumbnail of a page rather than a readable screenshot. The image has to stay in
     // the `1fr` track whichever side it is on.
     <section
-      className={`grid items-center gap-10 xl:gap-16 ${
+      className={`reveal-section grid items-center gap-10 xl:gap-16 ${
         reverse
           ? "xl:grid-cols-[minmax(0,1fr)_20rem]"
           : "xl:grid-cols-[20rem_minmax(0,1fr)]"
       }`}
     >
-      <div className={`flex flex-col gap-5 ${reverse ? "xl:order-2" : ""}`}>
-        {/* THE INDEX SITS BESIDE THE HEADING, not above it. It used to be a mono
-            uppercase kicker — `01 BEFORE IT EXISTS` — which is the craft floor's one marked
-            ban, and a pinned brief does not earn a ban back. The chronology those labels
-            carried was real, so it moved into the headings themselves ("before the paste
-            exists", "outlives", "before you save") and the number stayed as a sequence
-            marker on the heading's own baseline. */}
-        <div className="flex items-baseline gap-3">
-          <span className="text-brand font-mono text-xs">{index}</span>
-          <h2 className="max-w-[24ch] text-[1.75rem] leading-tight font-semibold tracking-[-0.02em]">
-            {title}
-          </h2>
-        </div>
+      {/* THE DIRECTION FOLLOWS THE VISUAL SIDE, NOT THE DOM ORDER. A reversed section puts
+          the copy on the right and the image on the left, so the classes have to swap with
+          it — otherwise half the sections would slide in from the side they are already on,
+          which reads as a glitch rather than an entrance. */}
+      <div
+        className={`flex flex-col gap-5 ${reverse ? "reveal-right xl:order-2" : "reveal-left"}`}
+      >
+        {/* NO `01` / `02` / `03`. There were numbers on the heading's baseline until this
+            pass, inherited from a mono kicker (`01 BEFORE IT EXISTS`) whose chronology had
+            already been folded into the headings themselves — "before the paste exists",
+            "outlives", "before you save". Once that happened the digit counted sections
+            rather than telling the reader anything: these four are not steps, nothing
+            depends on reading them in order, and four is not a number anyone needs
+            labelled. On a phone it was also pushing every second line of the heading into a
+            ragged hanging indent. */}
+        <h2 className="max-w-[24ch] text-[1.75rem] leading-tight font-semibold tracking-[-0.02em]">
+          {title}
+        </h2>
         <p className="text-ink-2 max-w-[52ch] leading-relaxed">{body}</p>
       </div>
 
-      <Shot {...shot} />
+      <div
+        className={`reveal-shot ${reverse ? "reveal-left" : "reveal-right"}`}
+      >
+        <Shot {...shot} />
+      </div>
     </section>
   );
 }

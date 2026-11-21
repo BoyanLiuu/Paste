@@ -74,6 +74,14 @@
    * prototype's --ease-in and --ease-in-out are omitted: a token that is wrong to
    * use is worse than an absent one, because nothing catches the violation. */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* THE SECOND CURVE, AND THE ONLY ONE, for scroll-driven motion. `--ease-out` is an
+   * exponential: it spends roughly 85% of its travel in the first third of the range, which
+   * is right for a 120ms time-based transition and wrong against a scroll position. Measured
+   * on the landing page's reveal, it put all the visible movement inside about 60px of
+   * scrolling and left a long settle nobody can see — the opposite of what widening the
+   * range was for. A cubic ease-out decelerates just as clearly over a distance a reader
+   * actually crosses. Do not use it for a timed transition; the band still owns those. */
+  --ease-scroll: cubic-bezier(0.33, 1, 0.68, 1);
 
   --tracking-display: -0.03em;
   --radius-sm: calc(var(--radius) * 0.6);
@@ -382,6 +390,135 @@
  * `animationend`, and Radix keeps a dialog mounted until its exit animation completes. At
  * 0.01ms the exit finishes immediately and the component unmounts, which is the intended
  * behaviour rather than a stuck overlay. */
+/* ---------------------------------------------------------- scroll reveal (landing page)
+ * The feature sections arrive from the edge they sit nearest: copy from one side, its
+ * screenshot from the other.
+ *
+ * ADDED AT THE USER'S REQUEST, 20 Nov 2026, AGAINST WHAT DESIGN.md SAID. That document's
+ * Don't list read "don't add an entrance or scroll-reveal animation to the home page", and
+ * the rule is now narrowed to the view page and the tombstone rather than deleted — those
+ * two still animate nothing, for reasons that have not changed.
+ *
+ * CSS, NOT `motion/react`. The landing page ships ZERO client components, and a
+ * `whileInView` would make every feature section one — framework JavaScript on the page
+ * whose job is to load fast and say what the product does. A scroll-driven animation needs
+ * no script at all.
+ *
+ * `@supports` GATED, which is the part that matters for correctness. Where
+ * `animation-timeline` is unsupported — Firefox today, Safari before 26 — the browser
+ * ignores the timeline but still RUNS the named animation on a normal clock: every section
+ * would animate at once on load, including the ones four screens down. Gating the whole
+ * block means those browsers get static, fully visible content, which is the right
+ * degradation for an effect that is decoration.
+ *
+ * NO DURATION TOKEN, and that is not a violation of Appendix E's 90-200ms band. A
+ * scroll-driven animation has no time duration to put in the band: `animation-range` ties
+ * its progress to the element's travel through the viewport, so the speed is the reader's
+ * scroll speed.
+ *
+ * TWO ANIMATIONS PER ELEMENT, ON DIFFERENT RANGES, which is the one piece of real authorship
+ * here. Folding opacity into the slide keyframes — as the first version did — means the text
+ * is still translucent at the moment it becomes readable, and DESIGN.md's objection to
+ * entrance animation was exactly that: "text that fades in is text that was slower to read".
+ * Splitting them answers it instead of overriding it. The fade is finished by `entry 40%`,
+ * while the slide keeps travelling to `entry 90%`, so by the time a line is worth reading it
+ * is at full contrast and only still settling into place.
+ *
+ * `--ease-out`, NOT `linear`, reversing what this comment said a draft ago. The claim was
+ * that any curve against scroll position reads as lag — true of ease-IN, which withholds the
+ * movement the wheel just asked for. An exponential ease-OUT does the opposite: most of the
+ * travel is spent in the first third of the range, so the element has arrived while it is
+ * still entering and the long tail is a settle rather than a drift. It is also the band's own
+ * curve, so the page has one deceleration everywhere instead of two.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* THE SECTION OWNS THE TIMELINE, AND ITS TRACKS SHARE IT. `view()` — the anonymous form
+     * this used until the probe below — measures EACH ELEMENT'S OWN box, which quietly
+     * defeats both of the things the ranges are for:
+     *
+     *   1. The stagger ran BACKWARDS. A section's screenshot is roughly 500px tall and its
+     *      copy 200px, and `items-center` puts the taller box's top edge ~70px higher. So
+     *      the shot's entry phase began first and no range offset on it could do anything
+     *      but shrink a head start it should never have had. Measured, at 1440x900: the shot
+     *      was at 0.10 opacity while the copy was still at 0.00.
+     *   2. The copy's whole reveal fitted in ~200px of scroll, because a short element's
+     *      entry phase is short. That is the opposite of the "make it slower so I can see
+     *      it" this was widened for — the range was already 100% of a phase that was itself
+     *      tiny.
+     *
+     * A named `view-timeline` on the section fixes both at once: one phase, 500px of travel,
+     * shared by both tracks, so a percentage means the same moment for each and the order is
+     * authored rather than emergent. */
+    .reveal-section {
+      view-timeline-name: --feature;
+      view-timeline-axis: block;
+    }
+
+    .reveal-left,
+    .reveal-right {
+      animation-name: reveal-fade, reveal-from-left;
+      animation-timing-function: var(--ease-scroll);
+      animation-fill-mode: both;
+      /* ONE TIMELINE PER ANIMATION. `animation-timeline` is a list like every other
+       * animation longhand, and naming it once against two names leaves the second on the
+       * document clock — which fires it on load, four screens early. */
+      animation-timeline: --feature, --feature;
+      animation-range:
+        entry 0% entry 35%,
+        entry 0% entry 95%;
+    }
+
+    .reveal-right {
+      animation-name: reveal-fade, reveal-from-right;
+    }
+
+    /* THE SCREENSHOT TRAILS ITS COPY by 15% of the section's entry phase, which on a 500px
+     * phase is about 75px of scroll. The sentence lands, then its evidence — the order
+     * someone reads them in. Small enough that the pair still reads as one gesture, and the
+     * shot finishes last, which is what makes it feel hinged to the copy rather than
+     * parallel with it. */
+    .reveal-shot {
+      animation-range:
+        entry 15% entry 50%,
+        entry 15% entry 100%;
+    }
+  }
+}
+
+/* NO BLUR ON THE WAY IN, deliberately, though the palette allows one. The only thing
+ * entering is a screenshot of text at 0.5x; blurring it means the reader's first look at the
+ * page's own evidence is at the one moment it cannot be read, and a filter animating over a
+ * 1000px-wide image is the most expensive frame on the page. */
+@keyframes reveal-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes reveal-from-left {
+  from {
+    /* 4rem rather than 2.5: at 2.5 the travel read as a fade with a nudge, which is not
+     * what "from the left" describes. */
+    transform: translateX(-4rem);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes reveal-from-right {
+  from {
+    transform: translateX(4rem);
+  }
+  to {
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
