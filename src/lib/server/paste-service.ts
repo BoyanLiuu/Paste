@@ -12,6 +12,7 @@ import "server-only";
 
 import type { Prisma } from "@/generated/prisma/client";
 import { isPasteId } from "@/lib/ids";
+import { isGuestUsername } from "@/lib/server/guest";
 import { liveWhere } from "@/lib/server/live-where";
 import { renderMode, TRUNCATE_LINES } from "@/lib/render/thresholds";
 import { getBody, storageConfigured } from "@/lib/storage/body";
@@ -295,6 +296,13 @@ export async function pasteSummary(
   _viewer: Viewer,
   username: string,
 ): Promise<{ all: number; live: number; gone: number; bytes: number }> {
+  // THE SAME LEAK AS `listPastes`, BY A DIFFERENT ROUTE. Guarding only the items would
+  // still let the page print "7 pastes · 12 KB" for a guest handle — a count is an answer,
+  // and it confirms both that the guest exists and how much they have posted.
+  if (isGuestUsername(username)) {
+    return { all: 0, live: 0, gone: 0, bytes: 0 };
+  }
+
   const now = new Date();
 
   const [all, live, bytes] = await Promise.all([
@@ -347,11 +355,21 @@ function parseCursor(cursor: Cursor): { createdAt: Date; id: string } | null {
  * — not an OFFSET. An offset re-counts from the start on every page and shifts under
  * insertion, so a paste created while someone pages through appears twice.
  */
+// A GUEST'S HANDLE IS NOT A PUBLIC LIST (M15). `/p/:id` renders an owner breadcrumb that
+// links here, and this function filters on `owner: { username }` with no visibility check —
+// both public. Without this guard, anyone holding ONE anonymous paste link could enumerate
+// every other paste that guest created: paste one benign thing and one sensitive thing
+// anonymously, and either link exposes the other.
+//
+// An empty page rather than a throw, so the route's own `notFound()` decides the status and
+// a prober learns nothing about whether the handle exists.
 export async function listPastes(
   _viewer: Viewer,
   username: string,
   options: ListOptions = {},
 ): Promise<Page<Paste>> {
+  if (isGuestUsername(username)) return { items: [], next: null, total: 0 };
+
   const { cursor, filter = "all", query = "" } = options;
   const needle = query.trim();
   const now = new Date();

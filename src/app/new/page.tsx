@@ -8,6 +8,10 @@ import { SavedPanel } from "@/components/create-receipt";
 import { NOW } from "@/lib/fixtures";
 import { isPasteId } from "@/lib/ids";
 import { SAMPLE_BODIES } from "@/lib/samples";
+import { headers } from "next/headers";
+
+import { isGuestUsername } from "@/lib/guest-handle";
+import { originFor, pasteUrl } from "@/lib/paste-url";
 import { mayShowSavedReceipt } from "@/lib/server/saved-receipt";
 import { getViewer } from "@/lib/server/session";
 
@@ -34,12 +38,18 @@ export default function Page({
   return (
     <AppShell current="new">
       <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl">New paste</h1>
-          <p className="text-muted-foreground">
-            Pick how long it lives now. There is no delete button later.
-          </p>
-        </div>
+        {/* THE HEADING BELONGS TO THE FORM, NOT THE PAGE, and rendering it here
+            unconditionally reintroduced a bug `create-form.tsx` documents as fixed: it sat
+            above the receipt telling someone to "pick how long it lives now" for a paste
+            they had already saved, with the retention already chosen and unchangeable.
+            Measured after the landing-page split put the form on its own route — the
+            heading moved with the page and lost the condition.
+
+            Inside the boundary, so it is governed by the same `?saved=` that governs the
+            form. */}
+        <Suspense fallback={<HeadingSkeleton />}>
+          <Heading searchParams={searchParams} />
+        </Suspense>
 
         {/* A placeholder the SHAPE OF THE ROW, not the shape of the form. The first
             version reused `FormSkeleton` here, which flashed a 384px-tall bordered box in
@@ -55,6 +65,31 @@ export default function Page({
         </Suspense>
       </div>
     </AppShell>
+  );
+}
+
+/** The page's title, which exists only while there is a form to title. */
+async function Heading({
+  searchParams,
+}: {
+  searchParams: Promise<{ sample?: string; saved?: string }>;
+}) {
+  const { saved } = await searchParams;
+  if (saved !== undefined) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h1 className="text-2xl">New paste</h1>
+      <p className="text-muted-foreground">
+        Pick how long it lives now. There is no delete button later.
+      </p>
+    </div>
+  );
+}
+
+function HeadingSkeleton() {
+  return (
+    <div role="status" aria-label="Loading" className="h-14 animate-pulse" />
   );
 }
 
@@ -139,7 +174,24 @@ async function FormOrReceipt({
     isPasteId(saved) &&
     (await mayShowSavedReceipt(await getViewer(), saved))
   ) {
-    return <SavedPanel id={saved} />;
+    // The receipt tells a guest what signing in would buy them. Resolved here rather
+    // than inside the panel, which is a client component and has no viewer.
+    const viewer = await getViewer();
+    const guest =
+      viewer.kind === "user" && isGuestUsername(viewer.user.username);
+
+    // THE ABSOLUTE URL IS BUILT HERE, on the server, because only the server knows the
+    // origin at render time. Deriving it in the client component produced a hydration
+    // mismatch on every receipt — see `paste-url.ts`.
+    const host = (await headers()).get("host");
+
+    return (
+      <SavedPanel
+        id={saved}
+        url={pasteUrl(saved, originFor(host))}
+        guest={guest}
+      />
+    );
   }
 
   const preset = sample === undefined ? undefined : SAMPLE_BODIES[sample];

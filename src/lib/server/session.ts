@@ -15,6 +15,7 @@ import { cache } from "react";
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 
+import { guestFromCookie } from "@/lib/server/guest";
 import { prisma } from "@/lib/server/prisma";
 import type { User, Viewer } from "@/lib/types";
 
@@ -28,7 +29,15 @@ import type { User, Viewer } from "@/lib/types";
  */
 export async function getViewer(): Promise<Viewer> {
   const { userId } = await auth();
-  if (userId === null || userId === undefined) return { kind: "anon" };
+  if (userId === null || userId === undefined) {
+    // NO CLERK SESSION IS NOT THE SAME AS NO IDENTITY SINCE M15. A guest cookie resolves to
+    // a real `users` row, so the viewer is `kind: "user"` and everything downstream — the
+    // capability table, the owner joins, the removal relationship check, the rate bucket —
+    // works without knowing the difference. The Clerk session is checked FIRST so that
+    // signing in always wins over a stale guest cookie.
+    const guest = await guestFromCookie();
+    return guest === null ? { kind: "anon" } : { kind: "user", user: guest };
+  }
 
   return { kind: "user", user: await localUser(userId) };
 }

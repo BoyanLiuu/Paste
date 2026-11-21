@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useDeferredValue, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema";
@@ -87,7 +86,6 @@ export function CreateForm({
   initialTitle = "",
   oversized = false,
 }: Props) {
-  const router = useRouter();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   /** Findings from the last submit attempt, which is what the panel shows. The live
    *  badge uses the debounced scan separately — the panel only ever reflects a scan of
@@ -229,7 +227,48 @@ export function CreateForm({
       // the top of the document on a navigation by default, which put the hero back on
       // screen and the confirmation below the fold — so the reward for saving was a page
       // that appeared to have forgotten.
-      router.replace(`/new?saved=${payload.id}`, { scroll: false });
+      // A FULL NAVIGATION, NOT `router.replace`. Measured on the production build:
+      // `router.replace("/new?saved=<id>", { scroll: false })` navigated to `/new` with the
+      // QUERY STRIPPED, twice, so the form reappeared empty and the link the person had
+      // just created was gone. A `page.goto` to the same URL renders the receipt correctly,
+      // so the destination was never the problem — only the client-side navigation to it.
+      //
+      // It worked while the form lived at `/`, which is the clue: that route read the
+      // request and was dynamic, and `/new` prerenders its shell because every request read
+      // sits inside a Suspense boundary. Under `cacheComponents` a soft navigation to a
+      // prerendered route appears to resolve against the shell's own URL.
+      //
+      // `location.assign` costs one full load at the end of an interaction, which is the
+      // cheapest moment to pay for it — and it buys a URL that is real: refreshable,
+      // shareable, and the thing the receipt is for. `scroll: false` is no longer needed
+      // because the heading above the form disappears with it, so the receipt lands at the
+      // top of the page rather than below a stale instruction.
+      // A FULL NAVIGATION, AND THREE THINGS WERE TRIED FIRST. Measured on the production
+      // build, `?saved=` is unreachable by soft navigation from this route:
+      //
+      //   1. `router.replace("/new?saved=<id>", { scroll: false })` — landed on `/new` with
+      //      the QUERY STRIPPED, so a successful save returned an empty form and discarded
+      //      the link the person had just created.
+      //   2. `router.push(...)` — identical.
+      //   3. `export const dynamic = "force-dynamic"` on the route, to restore the
+      //      behaviour this had while the form lived at `/` — refused outright:
+      //      "Route segment config "dynamic" is not compatible with
+      //      nextConfig.cacheComponents".
+      //
+      // A full `page.goto` to the same URL renders the receipt correctly, so the
+      // destination was never wrong. `/new` prerenders its shell because every request read
+      // sits inside a Suspense boundary, and a soft navigation appears to resolve against
+      // that shell's own URL.
+      //
+      // The lint rule below recommends `useRouter().push()`, which is option 2 and does not
+      // work here. Disabled with the measurement rather than silenced, because the rule is
+      // right in general and the next person should see why this is the exception.
+      //
+      // The cost is one full load at the end of an interaction — the cheapest moment to pay
+      // it — and it buys a URL that is real: refreshable, shareable, and the thing the
+      // receipt exists to hand over.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign(`/new?saved=${payload.id}`);
       return;
     }
 

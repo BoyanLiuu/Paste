@@ -179,13 +179,38 @@ test.describe("signed out", () => {
     ).toEqual([]);
   });
 
-  test("writing is refused", async ({ request }) => {
-    // The other half of the premise. Reads are open; this must not be.
+  test("writing now succeeds as a guest, under a lower ceiling", async ({
+    request,
+  }) => {
+    // THIS TEST ASSERTED 401 UNTIL M15, and the change is the feature rather than a
+    // regression: a signed-out visitor can create a paste. It is kept, inverted, because
+    // "what can someone without an account do" is exactly the question this file exists to
+    // pin down — and the answer moved.
     const response = await request.post("/api/pastes?retention=1d", {
       headers: { "Content-Type": "text/plain", Accept: "text/plain" },
-      data: "should not be stored\n",
+      data: "stored without an account\n",
     });
 
-    expect(response.status()).toBe(401);
+    expect(response.status()).toBe(201);
+  });
+
+  test("a guest is still refused what a guest should be refused", async ({
+    request,
+  }) => {
+    // The half of the old premise that survives. Creating opened up; deciding did not, and
+    // the size ceiling is lower — those are what keep "no account" from meaning "no limits".
+    //
+    // Over the guest ceiling: 2 MB is `TRUNCATE_BYTES`, the line where a paste stops being
+    // a page and becomes a download. An account may post up to 25 MB.
+    const tooBig = await request.post("/api/pastes", {
+      headers: { "Content-Type": "text/plain", Accept: "text/plain" },
+      data: "x".repeat(2 * 1024 * 1024 + 1),
+    });
+    expect(tooBig.status()).toBe(413);
+
+    // And the moderation queue is not reachable at all, which `roleOf` enforces by mapping
+    // a guest to `member` rather than to `moderator`.
+    const queue = await request.get("/moderation");
+    expect(queue.status()).toBe(404);
   });
 });

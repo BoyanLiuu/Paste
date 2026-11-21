@@ -22,6 +22,10 @@ export type AuditAction =
   | "paste.created"
   | "paste.blocked"
   | "paste.forked"
+  /** A guest signed in and moved their pastes into the account (M16). The actor is the
+   *  account; the payload carries the guest handle that is about to stop existing, which
+   *  is the only place that correspondence is ever written down. */
+  | "paste.claimed"
   | "paste.purged"
   | "paste.redacted"
   | "removal.requested"

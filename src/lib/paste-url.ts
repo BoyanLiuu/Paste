@@ -16,9 +16,27 @@ export function pasteUrl(id: string, origin: string): string {
   return `${origin}/p/${id}`;
 }
 
-/** What the browser should use. Falls back to a relative path server-side, where there is
- *  no honest origin to invent. */
-export function pasteUrlForBrowser(id: string): string {
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  return pasteUrl(id, origin);
+/**
+ * The origin for a server render, from the pin or the request.
+ *
+ * REPLACES `pasteUrlForBrowser`, WHICH COULD NOT WORK. That function read
+ * `window.location.origin` and fell back to `""` when `window` was undefined — so the
+ * receipt rendered `/p/oz39ZBey` on the server and `http://localhost:3025/p/oz39ZBey` on
+ * the client, and React reported a hydration mismatch every single time it appeared.
+ *
+ * The comment above explains why it shipped that way and never got caught: the receipt only
+ * renders after a save, which needed a session, so neither suite could reach it. M15 made
+ * saving possible without one — and the first person to use the feature saw the error.
+ *
+ * A client component cannot know the origin before hydration, so it must not try. The
+ * server knows it, and passes it down.
+ */
+export function originFor(host: string | null): string {
+  const pinned = process.env.PASTE_ORIGIN;
+  if (pinned !== undefined && pinned !== "") return pinned.replace(/\/$/, "");
+
+  // The request's own host, which is what `plainUrl` in the create route already uses.
+  // `http` locally: a deployment that terminates TLS pins `PASTE_ORIGIN` and never lands
+  // here.
+  return host === null ? "" : `http://${host}`;
 }

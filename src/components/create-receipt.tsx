@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 
 import { CopyValue } from "@/components/body-tools";
-import { pasteUrlForBrowser } from "@/lib/paste-url";
+
 import { Button } from "@/components/ui/button";
 import { RETENTION } from "@/lib/expiry/retention";
 import { formatBytes, formatCount } from "@/lib/format";
@@ -42,7 +42,19 @@ export type Receipt =
  * to disappear with it, and "New paste" has to be able to navigate back, neither of which
  * is possible while the state lives in a client component the page cannot see.
  */
-export function SavedPanel({ id }: { id: string }) {
+export function SavedPanel({
+  id,
+  url,
+  guest = false,
+}: {
+  id: string;
+  /** The absolute URL, resolved on the server. A client component cannot know the origin
+   *  before hydration without rendering something different from the server — which is
+   *  exactly the hydration mismatch this prop exists to remove. */
+  url: string;
+  /** Saved without an account, so the paste is linked from this browser only. */
+  guest?: boolean;
+}) {
   const reduced = useReducedMotion();
 
   return (
@@ -53,8 +65,8 @@ export function SavedPanel({ id }: { id: string }) {
       className="bg-card border-rule flex max-w-2xl flex-col gap-4 rounded-lg border p-6"
       aria-live="polite"
     >
-      <Saved id={id} />
-      <SavedActions id={id} />
+      <Saved url={url} guest={guest} />
+      <SavedActions id={id} url={url} />
     </motion.section>
   );
 }
@@ -193,7 +205,7 @@ function Body({ receipt }: { receipt: Receipt }) {
  * arrives with it. Appendix E records the carve-out rather than leaving the number looking
  * broken.
  */
-function Saved({ id }: { id: string }) {
+function Saved({ url, guest }: { url: string; guest: boolean }) {
   return (
     <div className="flex flex-col gap-3">
       <h2 className="text-2xl font-semibold">
@@ -206,8 +218,28 @@ function Saved({ id }: { id: string }) {
         — with a receipt instead of the text, never a dead end.
       </p>
 
+      {/* THE PASTE IS ALREADY SAVED, AND THE COPY MUST NOT IMPLY OTHERWISE (M15). "Sign in
+          to save this paste" would be false — the link works, the bytes are stored, nothing
+          is at risk — and this product's voice is built on not saying false things. What
+          signing in buys is ownership: it appears in your list, and you can ask for its
+          removal later.
+
+          The second sentence is the cost of not doing it, stated plainly rather than as a
+          warning. It is also the honest consequence of the orphan case: with the cookie
+          gone, nobody can speak for this paste except a moderator acting unprompted. */}
+      {guest ? (
+        <p className="border-rule bg-brand-soft/30 text-ink-2 max-w-[44ch] rounded-md border px-3 py-2 text-sm">
+          Saved without an account.{" "}
+          <Link href="/sign-in" className="text-ink underline">
+            Sign in
+          </Link>{" "}
+          to keep it in yours — it is linked from this browser only, and only a
+          moderator can remove it otherwise.
+        </p>
+      ) : null}
+
       <p className="border-rule bg-background rounded-md border px-3 py-2 font-mono text-sm break-all">
-        {pasteUrlForBrowser(id)}
+        {url}
       </p>
     </div>
   );
@@ -231,7 +263,7 @@ function Mark() {
  * Two of them are permanently on screen, so the one inside the card bought nothing and
  * competed with the two actions that are specific to having just saved something.
  */
-function SavedActions({ id }: { id: string }) {
+function SavedActions({ id, url }: { id: string; url: string }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
       {/* VIEW IS PRIMARY. After saving, the thing people do is check that it looks right —
@@ -239,11 +271,7 @@ function SavedActions({ id }: { id: string }) {
       <Button asChild>
         <Link href={`/p/${id}`}>View paste</Link>
       </Button>
-      <CopyValue
-        value={pasteUrlForBrowser(id)}
-        label="Copy link"
-        doneLabel="Link copied"
-      />
+      <CopyValue value={url} label="Copy link" doneLabel="Link copied" />
     </div>
   );
 }

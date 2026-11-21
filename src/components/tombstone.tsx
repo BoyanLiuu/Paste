@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { RETENTION } from "@/lib/expiry/retention";
+import { shownOwner } from "@/lib/guest-handle";
 import type { Tombstone } from "@/lib/expiry/tombstone";
 import {
   formatBytes,
@@ -55,7 +56,12 @@ export function TombstoneView({ tombstone }: { tombstone: Tombstone }) {
       <dl className="border-rule grid grid-cols-1 gap-x-10 border-t pt-2 text-sm sm:grid-cols-2">
         <Row
           label="Created"
-          value={`${formatDateTime(t.createdAt)} by ${t.owner}`}
+          // A GUEST'S HANDLE WAS PRINTED HERE IN FULL (M15), on the receipt of their own
+          // expired paste — reachable by anyone who creates anonymously with an hour's
+          // retention and waits. The view page's three guards all missed it because the
+          // tombstone is a different component, which is why the decision lives in
+          // `guest-handle.ts` rather than beside any one of them.
+          value={`${formatDateTime(t.createdAt)} by ${shownOwner(t.owner)}`}
         />
         <Row label="Retention chosen" value={RETENTION[t.retention].label} />
         <Row

@@ -16,20 +16,73 @@ vi.mock("@clerk/nextjs/server", () => ({
   currentUser: () => currentUserMock(),
 }));
 
+// `next/headers` TOO, SINCE M15. `getViewer` now falls back to a guest cookie when there is
+// no Clerk session, so it reads `cookies()` — which throws "called outside a request scope"
+// in this environment and failed three tests that had nothing to do with guests. Mocked at
+// the same boundary and for the same reason as Clerk: what is under test is this project's
+// resolution order, not Next's request plumbing.
+const guestCookieMock = vi.fn<() => string | undefined>();
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    get: (name: string) =>
+      name === "paste_guest" && guestCookieMock() !== undefined
+        ? { name, value: guestCookieMock()! }
+        : undefined,
+  }),
+}));
+
 const { getViewer, usernameFrom } = await import("@/lib/server/session");
 
 beforeEach(() => {
   authMock.mockReset();
   currentUserMock.mockReset();
+  guestCookieMock.mockReset();
+  // No guest cookie unless a test sets one, which is the common case.
+  guestCookieMock.mockReturnValue(undefined);
 });
 
 describe("getViewer", () => {
-  it("is anon with no session, which is the product's premise", async () => {
+  it("is anon with no session AND no guest cookie", async () => {
     authMock.mockResolvedValue({ userId: null });
 
     // Reads are public (§3). This arm has existed since M1 — it was never retrofitted —
     // because the view page must render for a signed-out visitor.
+    //
+    // THE CONDITION GAINED A SECOND HALF AT M15. "No session" used to mean anon on its own;
+    // it now means anon only when there is also no guest cookie, because a guest resolves
+    // to a real `users` row. The test's old name — "which is the product's premise" —
+    // asserted the narrower claim, and renaming it is part of the change rather than
+    // tidying: the premise is that READING is public, not that a signed-out visitor has no
+    // identity at all.
     await expect(getViewer()).resolves.toEqual({ kind: "anon" });
+  });
+
+  it("resolves a guest from the cookie when Clerk has no session", async () => {
+    authMock.mockResolvedValue({ userId: null });
+    guestCookieMock.mockReturnValue("a-token-that-matches-no-row");
+
+    // A token matching no row must fall back to anon rather than throw: the cookie outlives
+    // the token once M16's claim clears it, and a stale cookie must not break the
+    // create page. Exercised here with a token that cannot match, because a hit needs a
+    // database and `guest.spec.ts` covers that.
+    await expect(getViewer()).resolves.toEqual({ kind: "anon" });
+  });
+
+  it("prefers a Clerk session over a guest cookie", async () => {
+    // THE ORDER MATTERS AND IS EASY TO GET BACKWARDS. A signed-in person with a leftover
+    // guest cookie must resolve to their account, not to the guest — otherwise signing in
+    // appears to do nothing, and anything they create lands on a row that M16 would later
+    // try to claim into the account it already belongs to.
+    authMock.mockResolvedValue({ userId: "user_clerk123" });
+    guestCookieMock.mockReturnValue("a-stale-guest-token");
+
+    const viewer = await getViewer();
+    expect(viewer.kind).toBe("user");
+    // Not the guest handle: `mintGuest` is the only writer of that shape.
+    if (viewer.kind === "user") {
+      expect(viewer.user.username.startsWith("guest-")).toBe(false);
+    }
   });
 
   it("returns a promise, which is what let M10 replace the body in place", async () => {

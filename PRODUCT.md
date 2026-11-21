@@ -55,8 +55,10 @@ and the only way content changes is a destructive supersession that says so.
 - The text pasted is routinely machine output rather than hand-written code: logs,
   config, stack traces, `kubectl` dumps. One designed fixture is a 214,880-line log of
   20.1 MB.
-- Reading requires no account. Creating requires a session, so a reader who followed a
-  link meets no wall and a creator does.
+- **Neither reading nor creating requires an account** (M15, 20 Nov 2026). A guest gets a
+  working link immediately; signing in claims the paste into their account, lists it under
+  their name, and lets them request its removal. A guest paste is capped at 2 MB against an
+  account's 25 MB, and its retention is identical — including `never`.
 
 ## Capabilities and Constraints
 
@@ -80,8 +82,8 @@ and the only way content changes is a destructive supersession that says so.
   a fork is a create. Open a removal request. Read the audit record.
 - **Moderation:** a queue showing each request's justification and the paste's 90-day
   read count. Three outcomes — redact, delete, deny — each requiring a note.
-- **Accounts:** Clerk, currently on a development instance. Sign-in is required to create
-  and never to read.
+- **Accounts:** Clerk, currently on a development instance. Sign-in is required for
+  nothing: it claims ownership rather than granting access.
 - **Surfaces:** `/` (Persuade — the landing page, static, no request reads), `/new`
   (Operate — the create form, public, with the samples as `?sample=` links), `/p/:id`
   (Read), `/list/:username`, `/moderation`, `/sign-in`, `/sign-up`.

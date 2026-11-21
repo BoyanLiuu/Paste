@@ -30,6 +30,11 @@ model User {
   /// Nullable from the first migration, and unused until M10. Auth arriving later must
   /// not need a migration of its own.
   clerkUserId String? @unique @map("clerk_user_id")
+  /// A guest's bearer credential, held in the `paste_guest` cookie (M15). NULL for every
+  /// signed-in account, and mutually exclusive with `clerkUserId` by a CHECK. Never the
+  /// uuid: a cookie carrying an internal identifier makes that identifier a credential.
+  guestToken  String? @unique @map("guest_token")
+
   /// The public handle in /list/:username. It appears in URLs that must not rot, so it
   /// is ours and deliberately frozen rather than re-read from Clerk (§3).
   username    String  @unique

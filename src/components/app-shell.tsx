@@ -2,6 +2,10 @@ import { Suspense } from "react";
 
 import Link from "next/link";
 
+import { cookies } from "next/headers";
+
+import { isGuestUsername } from "@/lib/guest-handle";
+import { GUEST_COOKIE, guestPasteCount } from "@/lib/server/guest";
 import { getViewer } from "@/lib/server/session";
 
 // The header every screen carries.
@@ -70,10 +74,82 @@ export function AppShell({
         </div>
       </header>
 
+      {/* The claim offer, when a signed-in account arrives carrying a guest cookie (M16).
+          Behind its own boundary like every other session-dependent slot, and `null` while
+          it resolves — a banner that flashes in and out on every page load is worse than
+          one that appears a beat late. */}
+      <Suspense fallback={null}>
+        <ClaimBanner />
+      </Suspense>
+
       <main className={bleed ? "flex-1" : "container-page flex-1 py-10"}>
         {children}
       </main>
     </>
+  );
+}
+
+/**
+ * "You pasted something before signing in. Keep it?"
+ *
+ * THE RECEIPT PROMISES THIS, so something has to honour it. `create-receipt.tsx` tells a
+ * guest to "sign in to keep it in yours" — and until M16 signing in did nothing at all,
+ * which the user found by following the instruction the product gave them. A promise in the
+ * copy with no mechanism behind it is the one thing this project's voice cannot afford.
+ *
+ * SHOWN RATHER THAN DONE, which is the whole design and is argued in `claim/route.ts`: one
+ * browser can be two people, and nothing here is reversible.
+ *
+ * CHEAP WHEN IT DOES NOT APPLY, which matters because this renders on every route including
+ * `/p/:id`. The cookie check is free and settles the overwhelmingly common cases — signed
+ * out, or signed in with no guest history — before any query runs. Only the rare
+ * just-signed-in-with-a-cookie state pays for a count.
+ */
+async function ClaimBanner() {
+  const token = (await cookies()).get(GUEST_COOKIE)?.value;
+  if (token === undefined || token === "") return null;
+
+  const viewer = await getViewer();
+  if (viewer.kind !== "user" || isGuestUsername(viewer.user.username)) {
+    return null;
+  }
+
+  const count = await guestPasteCount(token);
+  if (count === 0) return null;
+
+  return (
+    <div className="border-rule bg-brand-soft/25 border-b">
+      <div className="container-page flex flex-wrap items-center gap-x-4 gap-y-2 py-3 text-sm">
+        <p className="text-ink-2">
+          You saved{" "}
+          <span className="text-ink">
+            {count} {count === 1 ? "paste" : "pastes"}
+          </span>{" "}
+          before signing in. Add {count === 1 ? "it" : "them"} to your account?
+        </p>
+
+        {/* TWO FORMS, NOT A FORM AND A LINK. Declining writes a cookie deletion, so it is
+            a POST too — and a `<Link>` would be prefetched, which would decline on hover. */}
+        <div className="flex items-center gap-2">
+          <form method="post" action="/claim">
+            <button
+              type="submit"
+              className="border-rule bg-card hover:border-rule-2 cursor-pointer rounded-md border px-3 py-1 transition-colors"
+            >
+              Add {count === 1 ? "it" : "them"}
+            </button>
+          </form>
+          <form method="post" action="/claim?decline=1">
+            <button
+              type="submit"
+              className="text-muted-foreground hover:text-ink cursor-pointer px-2 py-1 underline underline-offset-2"
+            >
+              No, leave {count === 1 ? "it" : "them"}
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -94,6 +170,13 @@ async function ModerationLink({ active }: { active: boolean }) {
 async function MyPastesLink({ active }: { active: boolean }) {
   const viewer = await getViewer();
   if (viewer.kind !== "user") return null;
+
+  // NOT FOR A GUEST (M15). `kind: "user"` is true of a guest — that is the whole design,
+  // and it is why this slot showed them a "My pastes" link pointing at
+  // `/list/guest-839bbe818b`, which reads as empty by deliberate construction. A nav link
+  // to a page guaranteed to say "Nobody has saved anything under that name" is worse than
+  // no link, and Next prefetches it on every page load.
+  if (isGuestUsername(viewer.user.username)) return null;
 
   return (
     <NavLink href={`/list/${viewer.user.username}`} active={active}>
@@ -123,7 +206,23 @@ async function MyPastesLink({ active }: { active: boolean }) {
 async function AccountSlot() {
   const viewer = await getViewer();
 
-  if (viewer.kind !== "user") {
+  // A GUEST IS PRESENTED AS SIGNED OUT, AND THIS WAS A BUG WORTH THE WHOLE COMMENT.
+  //
+  // Making a guest `kind: "user"` is what let the capability table, the owner joins and the
+  // removal check stay untouched — and it also made every slot that asks "is there a user?"
+  // answer yes. This one printed "Signed in as guest-839bbe818b | Sign out" in the chrome
+  // of EVERY page, including `/p/:id`: so the handle that the breadcrumb, the metadata row,
+  // the timeline and the tombstone were all carefully withholding was published in the
+  // header above them, on every paste, to every reader. The fourth and worst place it
+  // leaked, found by the user looking at the screen rather than by any test I had written.
+  //
+  // "Sign out" was wrong on its own terms too. There is no Clerk session to end, and the
+  // guest cookie is the only claim this browser has on its own pastes — so a control
+  // offering to clear it offers to orphan them, which §6.3 makes irreversible.
+  //
+  // Signed-out presentation is the honest answer: a guest has no account, and the thing
+  // they can usefully do is get one.
+  if (viewer.kind !== "user" || isGuestUsername(viewer.user.username)) {
     return (
       <Link href="/sign-in" className="hover:text-ink underline">
         Sign in

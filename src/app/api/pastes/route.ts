@@ -13,7 +13,9 @@ import { MAX_BYTES } from "@/lib/render/thresholds";
 import { formatBytes } from "@/lib/format";
 import { createPasteSchema } from "@/lib/schema/create-paste";
 import { BlockedBySecretScan, NeedsOverride } from "@/lib/server/create-paste";
+import { isGuestUsername } from "@/lib/guest-handle";
 import { investigationHash, rateKey } from "@/lib/http/client-ip";
+import { GUEST_MAX_BYTES, mintGuest } from "@/lib/server/guest";
 import { createPaste } from "@/lib/server/mutations";
 import { charge } from "@/lib/server/rate";
 import { userIdFor } from "@/lib/server/users";
@@ -33,17 +35,80 @@ function wantsPlainText(request: Request): boolean {
   return accept.includes("text/plain");
 }
 
+/**
+ * The address-bucket key when there is no proxy header at all.
+ *
+ * Every local request, since nothing sets `x-forwarded-for` on localhost. It has to be a
+ * real key rather than null for a guest, because the address bucket is the only limit an
+ * anonymous caller has before their row exists — so "no header" must not mean "no limit".
+ * Production never reaches it: Vercel sets the header on every request.
+ */
+const NO_ADDRESS_KEY = "no-address";
+
+/** The 429 both charge sites return, so the copy and the headers cannot drift apart. */
+function tooManyFromNetwork(decision: {
+  limit: "minute" | "day" | null;
+  retryAfter: number;
+}): NextResponse {
+  return NextResponse.json(
+    {
+      error:
+        decision.limit === "day"
+          ? "That is today's limit for this network. Try again tomorrow."
+          : "Too many pastes from this network in the last minute.",
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(decision.retryAfter),
+        "X-RateLimit-Remaining": "0",
+      },
+    },
+  );
+}
+
 export async function POST(request: Request) {
-  // --- stage 1: identify
-  const viewer: Viewer = await getViewer();
+  // --- stage 1: identify, and throttle before anything is created
+  //
+  // THE IP BUCKET IS CHARGED FIRST FOR AN ANONYMOUS CALLER, and the order is a correctness
+  // requirement rather than a preference. Minting a guest means INSERTing a `users` row, so
+  // minting before the limit hands an unauthenticated caller unbounded row creation: one
+  // POST, one row, no session needed. Charging first means a flood is refused before it can
+  // write anything.
+  //
+  // A SIGNED-IN CALLER KEEPS THE OPPOSITE ORDER. Their own account quota refuses them first,
+  // so the message names a limit they can act on; charging the shared address bucket first
+  // would tell someone behind a busy office NAT that *they* had posted too much, which is
+  // both wrong and unactionable.
+  //
+  // `rateKey` RETURNS NULL WITH NO PROXY HEADER, which is every local request. For a guest
+  // that cannot mean "no limit" — the address bucket is the only limit they have before a
+  // row exists — so the key falls back to a fixed value. Every local guest then shares one
+  // bucket, which is correct for development and never reached in production, where Vercel
+  // sets the header on every request.
+  let viewer: Viewer = await getViewer();
+  const ipKey = rateKey(request.headers) ?? NO_ADDRESS_KEY;
+
   if (viewer.kind !== "user") {
-    // M10 fills in the DENIED table and this becomes reachable. Written now so the
-    // contract is the final one rather than something auth has to retrofit.
-    return NextResponse.json(
-      { error: "Sign in to create a paste." },
-      { status: 401 },
-    );
+    const ipRate = await charge({ kind: "ip", hash: ipKey });
+    if (!ipRate.ok) return tooManyFromNetwork(ipRate);
+
+    // A GUEST IS MINTED BEFORE THE CAPABILITY GATE (M15), which is what lets the
+    // authorization model stay exactly as it was: by the time `assertCan` runs the viewer is
+    // a real `users` row resolving to `member`, so `visitor` is still refused everything and
+    // no DENIED entry was loosened to allow anonymous creation.
+    //
+    // HERE AND NOT IN `getViewer` because Next refuses a cookie write outside a Route
+    // Handler. That constraint is the better behaviour anyway: a guest row is created only
+    // by someone trying to save something, never by loading a page, so a crawler on `/new`
+    // mints nothing.
+    viewer = { kind: "user", user: await mintGuest(request) };
   }
+
+  // A guest is the owner of their paste in every respect except the size ceiling.
+  const ceiling = isGuestUsername(viewer.user.username)
+    ? GUEST_MAX_BYTES
+    : MAX_BYTES;
 
   const ownerId = await userIdFor(viewer);
   const via = createdVia(request);
@@ -53,18 +118,10 @@ export async function POST(request: Request) {
   // Before the size gate and the scan on purpose: those are the expensive stages, and a
   // refusal that costs nothing lets the scanner be used as a free oracle (§6.1).
   //
-  // BOTH BUCKETS, AND THE ACCOUNT'S FIRST (M14). Each closes a hole the other leaves open:
-  //
-  //   - The account bucket alone does nothing about a caller who can make accounts, and
-  //     from M15 it does nothing at all about a guest who clears a cookie — a new guest is
-  //     a new bucket, which is a limit anyone can lift for free.
-  //   - The IP bucket alone charges one person for everyone behind an office NAT, so a
-  //     shared egress would exhaust a limit nobody individually reached.
-  //
-  // THE ORDER IS DELIBERATE. The account charge comes first so a signed-in caller's own
-  // quota is what refuses them, and the message names the limit they can reason about.
-  // Charging the IP first would tell someone behind a busy NAT that *they* had posted too
-  // much, which is both wrong and unactionable.
+  // BOTH BUCKETS (M14). Each closes a hole the other leaves open: the account bucket does
+  // nothing about a caller who can make accounts — or a guest who clears a cookie, since a
+  // new guest is a new bucket — and the IP bucket alone charges one person for everyone
+  // behind a shared egress.
   const rate = await charge({ kind: "user", id: ownerId });
   if (!rate.ok) {
     return NextResponse.json(
@@ -84,35 +141,12 @@ export async function POST(request: Request) {
     );
   }
 
-  // The address bucket, charged only after the account's quota allowed the attempt — so a
-  // caller this route has already refused does not also consume the shared bucket their
-  // neighbours depend on.
-  //
-  // A NULL KEY IS NOT A REFUSAL HERE, and that is the decision worth seeing. There is no
-  // proxy in development, so no header and no key, and treating that as a block would make
-  // the create path unusable locally. The ACCOUNT limit above still applies in that case,
-  // which is what makes the fallback safe — M15's anonymous path has no account limit
-  // behind it, so it has to refuse a missing key instead of waving it through.
-  const ipKey = rateKey(request.headers);
-  if (ipKey !== null) {
+  // The address bucket for a signed-in caller, charged only after their own quota allowed
+  // the attempt — so someone this route has already refused does not also consume the shared
+  // bucket their neighbours depend on. A guest was charged above, before they existed.
+  if (!isGuestUsername(viewer.user.username)) {
     const ipRate = await charge({ kind: "ip", hash: ipKey });
-    if (!ipRate.ok) {
-      return NextResponse.json(
-        {
-          error:
-            ipRate.limit === "day"
-              ? "That is today's limit for this network. Try again tomorrow."
-              : "Too many pastes from this network in the last minute.",
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(ipRate.retryAfter),
-            "X-RateLimit-Remaining": "0",
-          },
-        },
-      );
-    }
+    if (!ipRate.ok) return tooManyFromNetwork(ipRate);
   }
 
   // --- stage 3: gate the size, on the header AND on the real byte count
@@ -121,17 +155,17 @@ export async function POST(request: Request) {
   // selected by a user-agent string — so the same endpoint accepted or refused the same
   // body depending on a header the caller writes, which is a limit anyone can raise.
   const claimed = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(claimed) && claimed > MAX_BYTES) {
+  if (Number.isFinite(claimed) && claimed > ceiling) {
     // Refuse before reading the stream: the point of checking the header is to avoid
     // buffering 200 MB only to reject it.
-    return tooLarge(claimed, MAX_BYTES, rate.remaining);
+    return tooLarge(claimed, ceiling, rate.remaining);
   }
 
   const raw = new Uint8Array(await request.arrayBuffer());
-  if (raw.byteLength > MAX_BYTES) {
+  if (raw.byteLength > ceiling) {
     // The header is a claim, so the real count is checked too. A client that understates
     // Content-Length gets refused here instead of slipping past stage 3.
-    return tooLarge(raw.byteLength, MAX_BYTES, rate.remaining);
+    return tooLarge(raw.byteLength, ceiling, rate.remaining);
   }
 
   const input = await readInput(request, raw);

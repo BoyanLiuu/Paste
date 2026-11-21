@@ -102,6 +102,16 @@ function Hero() {
               <Link href="/new?sample=python">Open a sample</Link>
             </Button>
           </div>
+
+          {/* THE NEW FACT, next to the button it changes (M15). Creating used to require a
+              session; it no longer does, which is the single thing a visitor deciding
+              whether to bother most wants to know. Beside the control rather than in the
+              sub-copy above, because it is a property of clicking that button — and the
+              second sentence is there so it does not read as "and nothing is kept", which
+              is what "no account needed" implies on most sites. */}
+          <p className="text-muted-foreground text-sm">
+            No account needed to create one. Sign in to keep it in yours.
+          </p>
         </div>
 
         {/* THE PRODUCT, IN THE FIRST VIEWPORT, WITH THE FIGURES BESIDE IT.
@@ -425,7 +435,7 @@ function Questions() {
   const qa = [
     [
       "Do I need an account?",
-      "To read, never. Every paste is readable by anyone with the link, with no session and no wall. To create one, yes — a paste carries a known owner, which is what makes the removal queue and the audit record mean anything.",
+      "No. Reading needs no session, and neither does creating — a paste made without an account gets a working link immediately. Signing in keeps it in your account, lists it under your name, and lets you ask for it to be removed later. Without one, the paste is linked from that browser only and a moderator is the only person who can remove it.",
     ],
     [
       "What happens when it expires?",
@@ -495,9 +505,9 @@ function Footer() {
           </div>
         </div>
         <p className="text-muted-foreground max-w-[70ch] text-xs leading-relaxed">
-          Reads are public and need no account; creating a paste needs a
-          session. Retention is chosen once and shown before saving. There is no
-          edit and no delete.
+          Reading and creating both work without an account; signing in is what
+          keeps a paste in your name. Retention is chosen once and shown before
+          saving. There is no edit and no delete.
         </p>
       </div>
     </footer>

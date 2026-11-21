@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { isGuestUsername, shownOwner } from "@/lib/guest-handle";
 import type { ForkProblem } from "@/lib/fork-problem";
 import { CopyBody, CopyLink, RangeSelectMount } from "@/components/body-tools";
 import { Badge } from "@/components/ui/badge";
@@ -62,12 +63,35 @@ export function PasteView({
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div className="flex min-w-0 flex-col gap-4">
+        {/* NO OWNER LINK FOR A GUEST (M15), which is the other half of the enumeration
+            fix. This breadcrumb is what made one anonymous paste link a route to every
+            other paste the same guest created — `listPastes` guards the destination and
+            this guards the path to it. Both, because either alone leaves the other
+            discoverable: the link would 404-equivalent, and the handle is guessable from
+            the metadata panel below if it is printed anywhere.
+
+            A guest paste shows no provenance at all rather than a dead label. "Saved
+            without an account" would be an honest alternative and says something about the
+            paste its reader did not ask about; the breadcrumb's job is navigation, and for
+            a guest there is nowhere to navigate.
+
+            EVERY PLACE THAT NAMES A USER GOES THROUGH `shownOwner`. Guarding the breadcrumb
+            and the metadata row was not enough: the lifecycle timeline below prints "Saved
+            as revision 1. By <username>", and it printed the guest handle in full — so the
+            page withheld the name in two places and published it in a third. One function
+            is what stops the next such place from missing it. */}
         <nav className="text-muted-foreground text-sm">
-          <Link href={`/list/${paste.owner}`} className="underline">
-            {paste.owner}’s pastes
-          </Link>
-          <span aria-hidden="true"> / </span>
-          <span>This paste</span>
+          {isGuestUsername(paste.owner) ? (
+            <span>This paste</span>
+          ) : (
+            <>
+              <Link href={`/list/${paste.owner}`} className="underline">
+                {paste.owner}’s pastes
+              </Link>
+              <span aria-hidden="true"> / </span>
+              <span>This paste</span>
+            </>
+          )}
         </nav>
 
         <div className="flex flex-col gap-2">
@@ -274,7 +298,11 @@ function Metadata({ paste }: { paste: Paste }) {
   const head = paste.revisions.at(-1)!;
   return (
     <dl className="border-rule flex flex-col border-t text-sm">
-      <Row label="Owner" value={paste.owner} />
+      {/* The metadata panel names the owner too, and printing a guest handle here would
+          hand back exactly the string the breadcrumb above withholds — making the guard
+          decorative. "No account" rather than the handle: a guest paste genuinely has no
+          account behind it, which is the fact a reader is entitled to. */}
+      <Row label="Owner" value={shownOwner(paste.owner)} />
       <Row
         label="Language"
         value={`${paste.language} from ${SOURCE_LABEL[paste.languageSource]}`}
@@ -361,7 +389,7 @@ function WhatThisAnswers({ paste }: { paste: Paste }) {
       text: (
         <>
           Saved as revision {paste.revisions[0].no}. By{" "}
-          {paste.revisions[0].createdBy}.
+          {shownOwner(paste.revisions[0].createdBy)}.
         </>
       ),
     },
@@ -429,7 +457,7 @@ function Forks({ paste, forks }: { paste: Paste; forks: Paste[] }) {
           <Link href={`/p/${fork.id}`} className="font-mono underline">
             /p/{fork.id}
           </Link>{" "}
-          by {fork.owner}, {formatDate(fork.createdAt)}
+          by {shownOwner(fork.owner)}, {formatDate(fork.createdAt)}
         </p>
       ))}
       {paste.forkedFrom === null && forks.length === 0 ? (

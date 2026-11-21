@@ -141,12 +141,20 @@ describe.skipIf(reason !== null)(
         where: { ipHash: key! },
       });
 
-      // `day_count`, NOT `minute_tokens`. The minute bucket refills lazily from elapsed
-      // time, so it is not monotonic: this test takes about four seconds, which restores
-      // more than the one token the charge spent, and the assertion read
-      // "expected 19 to be less than 19" against a route that had charged correctly.
-      // The daily counter only ever increases, so it is the one that can witness a charge.
-      expect(after.dayCount).toBeGreaterThan(before?.dayCount ?? 0);
+      // `minute_refilled_at`, AFTER TWO WRONG WITNESSES. The charge statement sets it to
+      // `now()` unconditionally, so it moves forward on every successful charge and on
+      // nothing else — which is the only property here that holds in every case:
+      //
+      //   - `minute_tokens` is NOT monotonic. It refills from elapsed time, and this test
+      //     takes about four seconds, which restores more than the one token spent. That
+      //     read "expected 19 to be less than 19" against a route charging correctly.
+      //   - `day_count` is not monotonic either, which took a UTC midnight to discover.
+      //     `day_started_at <> today` RESETS it to 1 by design, so a bucket first written
+      //     yesterday reads 7 before and 1 after: "expected 1 to be greater than 7",
+      //     again against a route that had done its job.
+      expect(after.minuteRefilledAt.getTime()).toBeGreaterThan(
+        before?.minuteRefilledAt.getTime() ?? 0,
+      );
     });
   },
 );
