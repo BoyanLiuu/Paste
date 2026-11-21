@@ -1,0 +1,38 @@
+<!-- The tab icon: the header's wordmark, redrawn for 16 pixels.
+
+     SAME MARK, DIFFERENT GEOMETRY, and the difference is the point. `Wordmark` in
+     app-shell.tsx draws a 1.8-wide rule over three r=1.6 dots on a 24 grid, which is
+     right at 20 CSS pixels in the header and illegible in a tab: scaled to 16px the
+     stroke lands near one device pixel and the three dots sit 0.15px apart, so they
+     merge into a second bar and the mark reads as an equals sign. Here the grid is 32,
+     the weights are proportionally heavier, and the dots are spread to cx 8/16/24 so a
+     clear gap survives the downscale.
+
+     HEX, NOT `oklch()`, and not `currentColor`. The header mark inherits its colour from
+     the link around it; a favicon has no cascade to inherit from, and the contexts that
+     rasterise one are not all CSS Color 4 engines. These two values are
+     `--paper` (oklch(17% 0.008 250)) and `--ink` (oklch(95% 0.005 250)) converted
+     exactly, so the icon cannot drift from the theme silently - if those tokens change,
+     this file has to be regenerated deliberately.
+
+     THE TILE EXISTS SO THE MARK OWNS ITS SILHOUETTE. Browser tab bars are light in one
+     theme and dark in the other, and a bare ink-coloured glyph disappears into one of
+     them. Carrying the app's own paper colour is both the faithful answer - this is what
+     the header looks like - and the robust one. -->
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 32 32"
+  width="32"
+  height="32"
+>
+  <rect width="32" height="32" rx="7" fill="#0d1013" />
+  <path
+    d="M7 11.5H25"
+    stroke="#eceff2"
+    stroke-width="3"
+    stroke-linecap="round"
+  />
+  <circle cx="8" cy="21" r="2.9" fill="#eceff2" />
+  <circle cx="16" cy="21" r="2.9" fill="#eceff2" />
+  <circle cx="24" cy="21" r="2.9" fill="#eceff2" />
+</svg>
