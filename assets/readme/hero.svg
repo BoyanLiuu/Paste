@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="360" viewBox="0 0 1200 360"
+     role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">Paste — a snippet host whose URLs keep answering</title>
+  <desc id="hero-desc">Paste text, get a link that keeps answering. Nothing is editable, and a
+    credential never gets a URL. Beside the title, a diagram shows one paste id — /p/AerfZDG4 —
+    holding through four states: saved, live, expired, and purged. The URL resolves in all four;
+    after a purge it returns a receipt carrying the SHA-256 of bytes that no longer exist.</desc>
+
+  <rect x="0.5" y="0.5" width="1199" height="359" rx="24" fill="#0d1013" stroke="#2d3135"/>
+
+  <g id="title-block">
+    <!-- The wordmark, the same rule-over-three-dots the app's header and favicon use. -->
+    <g transform="translate(64 56)">
+      <path d="M0 6h26" stroke="#eceff2" stroke-width="2.6" stroke-linecap="round"/>
+      <circle cx="2" cy="17" r="2.6" fill="#eceff2"/>
+      <circle cx="13" cy="17" r="2.6" fill="#eceff2"/>
+      <circle cx="24" cy="17" r="2.6" fill="#eceff2"/>
+    </g>
+    <text x="108" y="78" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="19" letter-spacing="2.4" fill="#c3c8cc">SNIPPET SHARING</text>
+
+    <text x="64" y="176" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="88" font-weight="700" letter-spacing="-3" fill="#eceff2">Paste</text>
+
+    <text x="64" y="232" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="28" fill="#eceff2">Paste text, get a link that keeps answering.</text>
+    <text x="64" y="270" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+          font-size="24" fill="#c3c8cc">Nothing is editable. A credential never gets a URL.</text>
+
+    <text x="64" y="322" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="19" fill="#c3c8cc">Next.js 16 &#183; React 19 &#183; Postgres &#183; Prisma 7</text>
+  </g>
+
+  <g id="lifecycle">
+    <rect x="700.5" y="48.5" width="435" height="271" rx="14" fill="#0d1013" stroke="#2d3135"/>
+
+    <text x="726" y="86" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="18" letter-spacing="1.6" fill="#c3c8cc">ONE URL, FOUR STATES</text>
+    <text x="726" y="124" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="26" fill="#f7b83d">/p/AerfZDG4</text>
+    <path d="M726 146h384" stroke="#2d3135" stroke-width="1"/>
+
+    <!-- The id is the spine: it outlives every state to the right of it. -->
+    <path d="M733 168v120" stroke="#f7b83d" stroke-width="2"/>
+
+    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="21" fill="#eceff2">
+      <text x="752" y="183">saved</text>
+      <text x="752" y="217">live</text>
+      <text x="752" y="251">expired</text>
+      <text x="752" y="285">purged</text>
+    </g>
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" fill="#c3c8cc" text-anchor="end">
+      <text x="1110" y="183">scanned, then stored</text>
+      <text x="1110" y="217">200</text>
+      <text x="1110" y="251">410 + receipt</text>
+      <text x="1110" y="285">hash, no bytes</text>
+    </g>
+  </g>
+</svg>
